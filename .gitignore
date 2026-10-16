@@ -1,6 +1,9 @@
 # Rust build output — regenerable, large, never committed.
 /target/
 
+# Detached experiment crates build their own target dirs (see experiments/).
+experiments/**/target/
+
 # Cargo.lock is NOT committed for this lib-only workspace.
 # Standard Rust library practice: applications commit Cargo.lock for
 # reproducible builds; libraries omit it so downstream resolvers are not

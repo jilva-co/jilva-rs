@@ -255,8 +255,13 @@ pub enum ColorSpec { Rgb(u8, u8, u8), Ansi16(Ansi16), Inherit }
   (`jilva-dark` fills any gap the base leaves). **Per-token last-writer-wins**:
   each token resolves independently, so overriding `Accent` never perturbs any
   other token. Variant overlays apply after the token merge; capability
-  quantization applies last. Testable form: a one-token delta must leave every
-  other token's snapshot byte-identical to the base (§"Testing strategy").
+  quantization applies last. Token-merge output is **capability-independent**:
+  the merged theme is cached per `theme_version`; only quantization re-runs
+  per `color_version`. (Pipeline note: per-frame `describe` still runs on a
+  theme switch — versions gate merge/quantize caches and layout/paint
+  skipping, never visitation; see RFC-2 pipeline.) Testable form: a
+  one-token delta must leave every other token's snapshot byte-identical to
+  the base (§"Testing strategy").
 - **Strongly typed + custom tokens.** The closed `Token` enum covers the
   framework; apps needing more (e.g. `DiffAdd`, `DiffRemove`) declare them in
   `extensions: ExtensionMap` keyed by a `&'static str` with a `StyleDef`
@@ -265,9 +270,12 @@ pub enum ColorSpec { Rgb(u8, u8, u8), Ansi16(Ansi16), Inherit }
   debug-visible marker (never a panic, never invisible text). This keeps custom
   tokens second-class by design — promotion to first-class is an RFC decision.
 - **Serialization: none in core Phase 1; additive-only thereafter (answers
-  feasibility F3.3).** No `serde` dependency in `jilva-core` (zero-dep
-  constraint; even MIT-licensed `serde` adds compile-time and MSRV-surface
-  cost the style system does not need). This matches the surveyed posture
+  feasibility F3.3).** No `serde` dependency in `jilva-core` — minimal and
+  justified per ARCHITECTURE.md §6.6: `serde` is excluded for its
+  compile-time and MSRV-surface cost against a style system that does not
+  need it (not as a precedent that core takes no external dependencies —
+  future segmentation/width crates remain on the table with their own §6.6
+  justifications). This matches the surveyed posture
   (Ratatui gates style serde behind a feature; iocraft keeps `serde`
   optional): if theme files (TOML/JSON) are ever supported, parsing lives in
   app code or a future crate, and any `serde` impl on theme types must be an
@@ -309,33 +317,57 @@ pub struct CapabilityProfile {
 pub enum ColorTier { Truecolor, Palette256, Ansi16, Mono }
 ```
 
+> Phase-1.6 domain model (resolution §3): the sketch above is the
+> **color projection** of a typed-domain hybrid — `ColorProfile` (this
+> struct, consumed by style), with sibling `InputProfile` (key/mouse
+> encodings, consumed by input decoding) and `ScreenProfile` (size,
+> resize semantics, consumed by renderer/lifecycle) named as domains
+> owned by the input/lifecycle RFCs. A thin `TerminalCapabilities`
+> aggregate (domains by value + snapshot id + per-domain versions)
+> travels only the terminal→loop and loop→frame seams; every other
+> module takes its own domain, never the aggregate. Unknown/degraded
+> values are explicit everywhere; guessing is forbidden.
+
 The `CapabilityProfile` shape itself is on RFC-1 Q14's "measure twice" list
 (profile shape threaded into render/style is expensive to change): fields may
 be *added* with defaults, but removing or retyping a field requires an
 amendment RFC.
+
+**Conservative default:** `Ansi16` — not `Mono`. `Mono` applies only on
+positive evidence (detection or explicit app choice) or `NO_COLOR`; the
+default assumes the ubiquitous 16-colour floor so capable terminals are
+never flattened by caution.
 
 **Fallback chain (normative):** every authored `Rgb` value quantizes
 deterministically down the chain Truecolor → 256 → 16 → Mono. Quantization
 tables live in core as data (they are math, not detection). Rules:
 
 1. **Truecolor:** authored values pass through untouched.
-2. **256:** nearest-palette mapping by minimum perceptual distance, computed
+2. **256:** nearest-palette mapping by a documented metric (default: minimum
+   perceptual distance; the exact metric — Euclidean RGB vs. perceptual — is
+   open question 5, decided by snapshot comparison evidence), computed
    once per `(Theme, profile)` and cached (§10). The standard 6×6×6 cube +
    grayscale ramp is assumed; terminals with non-standard 256 palettes get
    "close enough" colour (documented limitation, not an error).
 3. **16:** map to the nearest base/bright colour *by role, not just distance*:
    `Danger` MUST land on a red-family slot, `Warning` on yellow, `Success` on
    green, `Info`/`Accent` on blue/cyan, even when a naive distance metric
-   would pick otherwise. Meaning survives; hue accuracy does not.
+   would pick otherwise. Meaning survives; hue accuracy does not. (Why the
+   asymmetry: 256 slots are dense enough that distance preserves meaning;
+   16 slots are so coarse that distance can land on a wrong-meaning colour,
+   so roles override.)
 4. **Mono:** all colour is dropped; meaning is carried **only** by attributes
    and symbols — bold/underline/reverse for emphasis, plus text-level cues
    (`!`, `?`, `[x]`) which are widget content, not style. A theme is shippable
    only if its mono snapshots keep every feedback token distinguishable from
    body text (tested, §11).
-5. **`NO_COLOR` (env):** detection reports `Mono` with all decorative
-   attributes stripped to bold-off/plain (the `NO_COLOR` convention suppresses
-   colour; structural reverse-video for selection is retained since it is
-   functional, documented in the theme docs).
+5. **`NO_COLOR` (env, [no-color.org](https://no-color.org)):** detection
+   reports `Mono` with all decorative attributes stripped to bold-off/plain
+   (the `NO_COLOR` convention suppresses colour; structural reverse-video for
+   selection is retained since it is functional, documented in the theme
+   docs). Jilva policy: command-line-present `NO_COLOR` (any value including
+   empty) disables colour; attribute stripping follows the per-attribute
+   table, and reverse-video retention is the documented exception.
 
 **Background-detection uncertainty:** detection consults, in order,
 explicit app override → `COLORFGBG`/`TERM`-derived hints → OS query where
@@ -353,14 +385,19 @@ colours, which would corrupt the palette); missing `strikethrough` →
 `crossed-out` content gets a text-level fallback decided by the widget
 (e.g. `~like this~` — widget content, out of scope here); missing
 `underline-styles/curly` → plain underline → none, in that order; `dim` where
-unsupported → map to the `Muted` token colour instead of an attribute.
+unsupported → map to the `Muted` token colour instead of an attribute
+(`Muted` is resolved before any dim-substitution runs, so the fallback is
+total; non-text elements are unaffected by this substitution).
 Bold-as-bright (terminals rendering bold as bright colours) is neutralised by
 never relying on bold for meaning — bold is emphasis only, always paired with
 a token or variant that already carries the meaning.
 
 **Contrast/readability:** the default themes target WCAG-AA-inspired ratios
 (≥ 4.5:1 body text, ≥ 3:1 large/chrome elements) *at the truecolor tier*,
-verified by an automated check in the test suite (§11). Lower tiers cannot
+verified by an automated check in the test suite (§11) that runs the full
+`BackgroundHint` matrix — `Dark`, `Light`, and `Unknown` (for `Unknown`,
+assert against *both* dark and light surfaces: the dual-legibility rule,
+no auto-switch to hide behind). Lower tiers cannot
 promise ratios (16 colours are what they are); the guarantee there is weaker
 but still testable: every feedback token MUST differ from `Text`/`Background`
 by at least one attribute-or-colour step at every tier (no silent merges).
@@ -401,18 +438,19 @@ RFC-1 Q6(d) refusal), alongside the capability profile. Switching bumps a
 `theme_version: u64`; frames record the version painted. Mismatch on an
 otherwise clean tree → re-resolve attributes and repaint, skip
 measure/arrange. Propagation is thus a version bump plus paint-only damage;
-no subtree walk, no re-layout, no re-instantiation. Capability changes travel
+layout is skipped and no dedicated propagation walk exists — while the
+normal per-frame `describe` still runs (versions gate caches and skipping,
+never visitation; see RFC-2 pipeline). Capability changes travel
 the same path with a `profile_version` counter.
 
 ### 7. Visual attributes: the closed set
 
 Authored attributes (`AttrSet`) are a fixed bitflag set: `bold`, `dim`,
-`italic`, `underline`, `blink` (strongly discouraged, see below),
-`reverse`, `strikethrough`. No curly/colour-underline authoring in Phase 1
-(resolution may *emit* them as progressive enhancement, but themes cannot
-require them). `blink` resolves to `bold` everywhere (universal degradation —
-no theme may depend on blinking; retained in the set only so legacy deltas
-parse, documented as deprecated at birth).
+`italic`, `underline`, `reverse`, `strikethrough`. No curly/colour-underline
+authoring in Phase 1 (resolution may *emit* them as progressive enhancement,
+but themes cannot require them). There is deliberately **no `blink`**: it is
+refused at authoring time with a loud error (open question 10, resolved —
+no legacy users exist to migrate, and no theme may depend on blinking).
 
 ### 8. Animation: future-compat + reduced motion, no engine
 
@@ -452,9 +490,9 @@ are two narrow hooks:
   degradation; conjunction (`add_modifier`/`sub_modifier` stacking) is more
   expressive than our single-overlay rule, but we trade that expressiveness
   for snapshot-testability.
-- **Cursive / Bubble Tea / Textual:** Cursive's theme TOML with named colours
+- **Cursive / Bubble Tea / Textual:** Cursive's theme TOML ([TOML theme docs](https://docs.rs/cursive/latest/cursive/theme/index.html), stringly-typed named colours)
   supports the "named theme + partial override" ergonomics we want, but as
-  stringly-typed config; Textual's CSS-like design tokens + `watch`-driven
+  stringly-typed config; Textual's CSS-like [design tokens](https://textual.textualize.io/guide/design/) + [`watch`-driven](https://textual.textualize.io/guide/reactivity/)
   reactive updates inform our token vocabulary and version-bump propagation,
   while its CSS cascade is explicitly rejected (no specificity wars in a
   cell grid; deltas compose by ordered override, last-writer-wins, fully
@@ -532,11 +570,12 @@ are two narrow hooks:
    large apps need scoped themes (subtree with its own theme)? Scoped themes
    are currently NOT proposed; if RFC-2 needs dialog-scoped theming, this RFC
    must be amended.
-7. **(Shared D)** Capability profile refresh cadence: detected once at startup
-   and cached (ARCHITECTURE.md §8.14), but `NO_COLOR` / pipe-redirect can
-   change mid-run — who re-detects, and does a profile change mid-frame drop
-   or complete the frame? Proposed: profile refresh is event-driven at frame
-   boundaries; needs lifecycle-RFC agreement.
+7. **(Shared D)** Capability profile refresh cadence: RESOLVED — detection
+   once at startup, cached; event-driven refresh at frame boundaries with
+   **snapshot-at-start** semantics (a frame completes against its start
+   snapshot; changes land on the next boundary — never a torn frame).
+   Queue mechanics owned by the lifecycle RFC. Profile shape follows the
+   typed-domain hybrid (§5): detect in terminal, consume per-domain.
 8. **(Shared I — Unicode-hard choices)** Style attaches attributes to grapheme
    clusters, never splits a cluster across differing attributes, and never
    measures width — but truncation of a styled span at a cell boundary (e.g.
@@ -549,8 +588,11 @@ are two narrow hooks:
    must be amended.
 9. High-contrast / colorblind-safe built-in theme: third built-in or a
    documented delta recipe? (Suggest recipe first, promote on demand.)
-10. `blink` deprecation-at-birth: keep the parse-and-degrade shim, or refuse
-    the attribute entirely (fail-loud on authoring)?
+10. `blink`: RESOLVED — refuse entirely (fail-loud on authoring). Rationale:
+   no legacy users exist to migrate, and a degrade-shim would bless an
+   attribute no theme may depend on. The closed attribute set (§7) simply
+   has no `blink`; parsers reject it with a loud error pointing at
+   emphasis alternatives.
 
 ## Drawbacks
 
@@ -598,7 +640,10 @@ never breaks information".
    exhaustive snapshots — see open question 4.
 2. **Mono distinguishability test:** at `Mono`, assert every feedback token
    differs from `Text` by ≥ 1 attribute step; assert `Selected`/`Focused` differ
-   from `Normal` by reverse-video or equivalent.
+   from `Normal` by reverse-video or equivalent — including the stacked
+   `Selected + Focused` pair explicitly (the a11y-critical combination;
+   remaining pairs covered by composition property tests per open
+   question 4).
 3. **Contrast check (truecolor tier):** automated ratio assertions (≥ 4.5:1
    body, ≥ 3:1 chrome) for built-ins; same check exposed as a test helper for
    custom themes.
@@ -689,8 +734,8 @@ conflicts. Each item states **aligned / resolved / contested**.
 - **Layout-invalidation authority (RFC-2 §5) — resolved, no disagreement.**
   RFC-3 classifies (all Phase-1 style changes are paint-only); RFC-2's loop
   applies the max rule and its debug assertions police under-reporting (§6).
-  Terminology mapped explicitly (repaint = state-only; structure = identity
-  output producing layout+repaint work).
+  Terminology mapped explicitly (both RFCs: none / repaint / layout;
+  RFC-2 §5 adopts RFC-1 Q13 verbatim).
 - **Single-overlay vs RFC-2 widget needs (my Q4) — CONTESTED, position
   taken.** Draft-1 single-winner is withdrawn: it cannot express
   selected-in-focused vs. selected-in-unfocused, which alpha list/table/input
@@ -709,3 +754,11 @@ conflicts. Each item states **aligned / resolved / contested**.
   + portability notes (§2); invalidation authority + terminology map + Context
   threading (§6); Q8 harness naming (Testing); R1 no-escape-hatch hardening;
   this cross-review record. Status remains Draft.
+- 2026-10-16 (Phase 1.6): Resolution amendments — typed-domain capability
+  model (§5: color/input/screen domains + aggregate transport rule);
+  Ansi16 conservative default; capability-independent merge + describe note
+  (§4); snapshot-at-start refresh (Q7 resolved); NO_COLOR policy + citation;
+  mono S+F explicit (§Testing); dim→Muted order; metric deferred to Q5;
+  contrast matrix incl. Unknown; prior-art links; 16/256 asymmetry;
+  blink refused (Q10 resolved, §7 updated); serde wording (§4). Evidence:
+  `docs/research/CAPABILITY_MODEL_RESOLUTION.md`. Status stays Draft.

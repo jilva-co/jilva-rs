@@ -83,9 +83,12 @@ Two complementary mechanisms; both are stable across frames:
   `root / 0 / 2` = third child of first child of root). Paths are assigned
   deterministically by a depth-first walk of the tree the `view` describes.
   Positional identity is the default and suffices for static structure.
-- **Explicit keys.** Any child in a dynamic sequence SHOULD carry a
+- **Explicit keys.** Any child in a dynamic sequence carries a
   user-supplied `Key` (an opaque, hashable, `Clone + Eq` value; typically a
-  domain id). When siblings carry keys, identity follows keys, not positions.
+  domain id) — **required by contract for dynamic sequences, enforced at
+  runtime, not by the type system** (evidence: feasibility exp03). When
+  siblings carry keys, identity follows keys, not positions. Static
+  structure needs no keys.
 
 Contract:
 
@@ -94,8 +97,10 @@ Contract:
 | Stable structure, no keys | Positional identity; state slots preserved |
 | Keyed siblings reorder | State follows the key (scroll/cursor stay with the item) |
 | Key appears / disappears | Slot created on first mount (`init`), dropped on unmount with `cleanup` called (§6) |
+| Unkeyed dynamic sequence (keys omitted where required) | Framework flags it (debug assertion + documented runtime outcome flag); falls back to positional with the fallback recorded — never silent |
 | Keyed ↔ unkeyed mixing within one sibling list | Forbidden: framework logs/detects in debug builds and falls back to positional with a documented warning; never silent state corruption |
-| Key collision (duplicate keys among siblings) | First wins; extras get fresh slots each frame (i.e. stateless) + debug assertion. Never panic in release |
+| Key collision (duplicate keys among siblings) | First wins; extras get fresh slots each frame (i.e. stateless) + debug assertion + collision count. Never panic in release |
+| Stale identity handle (slot dropped since) | Resolves to `None`; holders must handle absence — no dangling access |
 | Component type at an identity changes (replacement) | Old slot dropped (with `cleanup`), new slot initialised. Type change ⇒ new component, even if key/position match |
 | Conditional branch (`if/else` swapping subtrees) | Positional identity applies: same position + same type ⇒ same slot. Users who need branch-independent state use keys or lift state to the model |
 
@@ -135,15 +140,19 @@ threaded by the framework, never a thread-local or singleton.
 Ownership mechanics in Rust terms:
 
 - `Model` and each state slot are plain owned values (`S: Sized`, no required
-  heap allocation; `Send` required, `Sync` not required for single-threaded
-  loop — see §7).
+  heap allocation; **no `Send`/`Sync` bounds on models or slots** — threading
+  policy (b): `Send` lives only on bridge job/completion types at the async
+  boundary, so single-threaded apps keep `Rc`/`RefCell`/`Cell` ergonomics;
+  see §7 and open-question resolution note below).
 - `update: &mut S` — exclusive access is structural, not via `RefCell`; the
   borrow checker enforces "one owner mutates" at compile time.
 - `view: &S` — shared borrows compose freely (parent views child state through
   `&`), so deep trees never fight the borrow checker.
 - No lifetimes escape: frame descriptions are owned values (regions + styled
   spans as data), never `&` into component state, so the renderer may retain
-  the previous frame without borrowing the tree.
+  the previous frame without borrowing the tree. Partial-output rule: a
+  failed `view` yields no description — there is no partially-built frame in
+  user-visible state (evidence: resolution B1/B2 measurements).
 
 ### 4. Event propagation (normative)
 
@@ -218,9 +227,12 @@ rather than drifting.
 - **`repaint` (paint-only):** text/attribute/cursor change within identical
   regions — must not invalidate layout (RFC-1 Q13 wording). Invalidates the
   component's damage rectangle only; no re-layout, no parent involvement.
-  **Theme, token, variant, and capability-profile changes are always
-  `repaint`** (RFC-3 §6 R5): style resolution output carries no geometry by
-  construction, so a theme switch provably cannot move anything. Component-side
+  Pipeline gating: `repaint` reuses the previous layout (skips the layout
+  stage of the §8 pipeline); `none` skips describe/reconcile/layout/paint
+  entirely. **Theme, token, variant, and
+  capability-profile changes are always `repaint`** (RFC-3 §6 R5): style
+  resolution output carries no geometry by construction, so a theme switch
+  provably cannot move anything. Component-side
   plumbing for RFC-3 shared question B: the loop holds `theme_version` /
   `profile_version` counters; a version mismatch on an otherwise clean tree
   re-resolves attributes and repaints with measure/arrange skipped.
@@ -302,11 +314,15 @@ always restored; the app decides recovery policy from the returned error).
   Effects (timers, background work) are declared as data
   (`Effect::After(dur, msg)`, `Effect::Task(fn_once_bridge)`) executed by an
   opt-in bridge layer above core; core itself has zero async dependencies and
-  no executor types.
+  no executor types. Constraint: core names no thread, no executor, no spawn
+  point — `Effect::Task` is opaque routed data, executed above core only
+  (evidence: feasibility exp04).
 
-Threading: single-threaded loop is the baseline. `Model: Send` is required so
-bridges can move completed work back; `Sync` is not required. Multi-threaded
-rendering is a non-goal.
+Threading: single-threaded loop is the baseline. **No `Send`/`Sync` on models
+or slots** (policy (b), evidence: E0277 against universal `Send` in
+feasibility exp04): `Send` is required only on effect-bridge job and
+completion types that cross threads; the bridge moves completions back as
+messages. Multi-threaded rendering is a non-goal.
 
 ### 8. Rust feasibility end-state (normative; answers F2.1–F2.6)
 
@@ -324,7 +340,10 @@ returns nothing by reference: frame descriptions are **owned data**
 (regions + styled spans), so no returned lifetime threads through the
 event→update→render transaction (feasibility §1.1 challenge discharged —
 neither whole-model clone nor arena is needed because nothing is borrowed
-across the boundary).
+across the boundary). Concretely: **`&mut Frame` (or any mutable render
+surface) MUST NOT appear in the `Component` trait.** The sketches' old
+`frame: &mut Frame` parameter is superseded by the return-owned form below;
+`Frame` names the framework-internal cell buffer only (pipeline rule 6).
 
 **F2.2 — Heterogeneous children.** Named mechanism: a **`dyn`-compatible
 render seam**. The view side of `Component` is object-safe (`&self` methods,
@@ -353,9 +372,10 @@ children through `&`, updates hold exactly one `&mut` at a time, and the
 slot table (not the tree) owns all mutable state — so deep trees never
 double-borrow. No `unsafe` is required for any of this (compatible with a
 `forbid(unsafe_code)` posture); the generational table is safe indexed
-access. `Send` is required on `Model`/slot state (bridge can move completed
-work back); `Sync` is not (single-threaded loop). interior mutability is
-confined to observably-pure memo caches inside render helpers (§3 class 4).
+access. Threading policy (b): models and slots carry **no** `Send`/`Sync`
+bounds (single-threaded ergonomics preserved); only bridge job/completion
+types are `Send`. Interior mutability is confined to observably-pure memo
+caches inside render helpers (§3 class 4).
 
 **F2.6 — Elm-clone budget and layering.** Stated plainly: **no per-event
 model cloning exists in this design.** Go-flavoured Elm copies models because
@@ -379,6 +399,31 @@ width/segmentation authorities are specified by the renderer RFC no later
 than Phase 3 — recorded here as a dependency, not decided here, so no
 `Cell::new('x')`-shaped API entrenches through component code first.
 
+**Render pipeline end-state (Phase 1.6 resolution; normative).** The loop
+runs six stages with explicit ownership at each step:
+
+1. `describe` — components produce owned `View` descriptions from
+   `(&Model, &Slot, &Context)`; no mutation, no I/O.
+2. `reconcile` — framework matches descriptions against the generational
+   slot table (paths + keys); mounts/drops settle here. A failed `describe`
+   retains the previous `Desc` + key set: zero mounts, zero drops, frame
+   aborted clean (joint rule with feasibility G1).
+3. `layout` — framework borrows `&Desc` (+ viewport) into placements; user
+   code performs no cell math.
+4. `paint` — placements write into the single reused internal `&mut
+   CellFrame`; this is the only mutation in the pipeline.
+5. `diff` — frame buffer compared against the previous committed frame;
+   only changed cells cross the backend seam.
+6. `commit` — buffer published; `Frame` names this internal cell buffer
+   exclusively and MUST NOT appear in the `Component` trait.
+
+Change classes gate the pipeline: `none` skips describe/reconcile/layout/paint;
+`repaint` reuses the previous layout (skips the layout stage only); `layout`
+runs all stages. Per-frame description allocation is caller-owned and bounded
+O(visible nodes); steady-state slot storage allocates nothing (allocation
+baseline: 64 mounts → 64 slot boxes, 200 steady reconciles → +0 boxes,
+0 drops — feasibility exp03).
+
 ## API sketches (all PROPOSED API — NOT YET IMPLEMENTED)
 
 Preferred direction first; §"Alternatives" shows the rejected shape.
@@ -389,14 +434,14 @@ code — meeting API_DESIGN principles 1 (intent over mechanics) and 3a
 (build-and-run helpers) by construction, not aspiration.
 
 ```rust
-// PROPOSED API — NOT YET IMPLEMENTED: hello world (preferred: declarative view fn)
+// PROPOSED API — NOT YET IMPLEMENTED: hello world (preferred: owned-return view fn)
 struct Hello;
 struct App { name: String } // app model
 
 impl Hello {
     // PROPOSED API — NOT YET IMPLEMENTED
-    fn view(app: &App, frame: &mut Frame) {
-        frame.text(format!("hello, {}", app.name)); // semantic helper, not cells
+    fn view(app: &App, ctx: &Context) -> Result<View, Error> {
+        Ok(View::text(format!("hello, {}", app.name))) // semantic helper, not cells
     }
 }
 // run: App::new(App { name: "world".into() }).run()  // PROPOSED API — NOT YET IMPLEMENTED
@@ -414,8 +459,8 @@ fn update(model: &mut Counter, msg: Msg) -> Change {  // PROPOSED API — NOT YE
     }
     Change::Repaint // RFC-1 Q13 name: state-only, no re-layout
 }
-fn view(model: &Counter, frame: &mut Frame) {  // PROPOSED API — NOT YET IMPLEMENTED
-    frame.text(format!("count: {}", model.count));
+fn view(model: &Counter, ctx: &Context) -> Result<View, Error> {  // PROPOSED API — NOT YET IMPLEMENTED
+    Ok(View::text(format!("count: {}", model.count)))
 }
 ```
 
@@ -434,24 +479,30 @@ impl Component for Input {  // PROPOSED API — NOT YET IMPLEMENTED
 ```
 
 ```rust
-// PROPOSED API — NOT YET IMPLEMENTED: dynamic list (preferred: explicit keys)
-fn view(model: &TodoApp, frame: &mut Frame) {  // PROPOSED API — NOT YET IMPLEMENTED
-    frame.list(model.items.iter().map(|item| {
-        Row::new(&item.label).key(item.id) // state follows id across reorders
-    }));
+// PROPOSED API — NOT YET IMPLEMENTED: dynamic list (preferred: explicit keys, owned nodes)
+fn view(model: &TodoApp, ctx: &Context) -> Result<View, Error> {  // PROPOSED API — NOT YET IMPLEMENTED
+    Ok(View::list(model.items.iter().map(|item| {
+        View::row(&item.label).key(item.id) // state follows id across reorders
+    }).collect()))
 }
 ```
 
 ```rust
-// PROPOSED API — NOT YET IMPLEMENTED: parent-child composition (preferred)
-fn view(model: &App, frame: &mut Frame) {  // PROPOSED API — NOT YET IMPLEMENTED
-    frame.column([
-        Header::new(&model.title),
-        TodoList::new(&model.todos).on_select(Msg::Selected), // child emits, parent decides
-        StatusBar::new(model.status()),
-    ]);
+// PROPOSED API — NOT YET IMPLEMENTED: parent-child composition (preferred: owned nodes,
+// heterogeneous sources erase into uniform View nodes at the return boundary)
+fn view(model: &App, ctx: &Context) -> Result<View, Error> {  // PROPOSED API — NOT YET IMPLEMENTED
+    Ok(View::column(vec![
+        Header::view(&model.title, ctx)?,
+        TodoList::view(&model.todos, ctx)?, // child emits, parent decides (via messages)
+        StatusBar::view(model.status(), ctx)?,
+    ]))
 }
 ```
+
+> Shape note (feasibility P1/P2 synthesis): heterogeneous child components
+> resolve to homogeneous owned `View` nodes at the return boundary (erasure
+> inside the owned-return form — one combined mechanism, not two). `column!`
+> builder sugar, if added later, expands exactly to the above.
 
 ## Prior art
 
@@ -578,12 +629,16 @@ Unresolved (genuine disagreements / implementer-detail, for Discussion):
    dynamic lists, or advisory with runtime fallback? Trade-off: safety vs.
    beginner friction. (Carried; current position: advisory — contested, see
    handoff.)
-3. `Send` bound on slot state: necessary for the effect bridge, or should
-   single-threaded widgets stay `!Send`-capable with an explicit
-   `Send`-only opt-in for bridged effects? (Carried; current position:
-   require `Send` — contested, see handoff.)
+3. `Send` bound on slot state: RESOLVED in Phase 1.6 — policy (b): no
+   `Send`/`Sync` on models or slots; `Send` only on bridge job/completion
+   types (evidence: E0277 pair in feasibility exp04; cross-reviewed).
+   Single-threaded widgets keep `Rc`/`RefCell` ergonomics.
 4. Effect cap value and overflow semantics (error vs. silent truncation with
    warning) — needs implementer measurement.
+6. May `describe` and `layout` fuse for `repaint`-only subtrees
+   (placement-`Vec` pooling)? Declared an implementation detail, not a
+   contract change — implementer decides, contract text unchanged either
+   way.
 5. **Conflict flags:** none with RFC-1 (change classes adopted, focus
    resolved, J-list items addressed: identity §2, event extensibility §4,
    tick source §4, error taxonomy §6, remaining J items owned by sibling
@@ -637,12 +692,11 @@ Unresolved (genuine disagreements / implementer-detail, for Discussion):
   sketches gained brevity check + `Repaint` naming; open questions split
   resolved/unresolved.
 - **Contested items (for Discussion week):** (a) keys advisory vs. required
-  — this RFC holds advisory-with-fallback for beginner friction, but a
-  required-keys position is defensible on J-list "measure twice" grounds and
-  should be argued by a widget author; (b) `Send` bound — required here for
-  bridge simplicity, but `!Send`-tolerant slots have precedent in
-  single-threaded UI and the bridge could box the requirement instead;
-  (c) `Outcome::Observed` survival — leaning drop.
+  — contract requires keys for dynamic lists at runtime (fallback + flags),
+  but whether the *type system* should enforce it remains arguable and
+  should be argued by a widget author; (b) `Send` bound — RESOLVED in
+  Phase 1.6 to Send-at-boundary-only (evidence: E0277); reopen only with
+  new implementer evidence; (c) `Outcome::Observed` survival — leaning drop.
 - **Risks:** (a) identity/key misuse semantics are hard-to-change (J) — hold
   the Discussion week for widget-author review; (b) change-class precision
   depends on widget-author discipline — debug-build damage assertions are the
@@ -658,3 +712,12 @@ Unresolved (genuine disagreements / implementer-detail, for Discussion):
   and focus scoping; recorded RFC-3 invalidation split; incorporated
   feasibility F2.1–F2.6 into §§7–8; open questions split into resolved (R1–R3)
   and unresolved (1–5). Status stays Draft.
+- 2026-10-16 (Phase 1.6): Resolution amendments — owned-return pipeline made
+  normative (§8.x rules 1–6; `&mut Frame` banned from the trait; sketches
+  rewritten); keys required-by-contract at runtime (§2); Send-at-boundary-only
+  policy adopted (OQ3 resolved); generational slot storage named (§8 F2.3);
+  `Effect::Task` constrained to opaque routed data; allocation baseline
+  recorded (64/64/+0); reconcile rule added (failed describe retains Desc).
+  Evidence: `docs/research/RENDERING_MODEL_RESOLUTION.md`,
+  `docs/research/COMPONENT_FEASIBILITY.md` (29 tests + quoted compiler
+  proofs). Status stays Draft.
