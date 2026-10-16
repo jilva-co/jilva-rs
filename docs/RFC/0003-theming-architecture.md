@@ -257,9 +257,11 @@ pub enum ColorSpec { Rgb(u8, u8, u8), Ansi16(Ansi16), Inherit }
   other token. Variant overlays apply after the token merge; capability
   quantization applies last. Token-merge output is **capability-independent**:
   the merged theme is cached per `theme_version`; only quantization re-runs
-  per `color_version`. (Pipeline note: per-frame `describe` still runs on a
-  theme switch — versions gate merge/quantize caches and layout/paint
-  skipping, never visitation; see RFC-2 pipeline.) Testable form: a
+  per `color_version`. (Pipeline note: per-frame `describe` still runs on
+  every frame — descriptions are rebuilt regardless; the
+  `(theme_version, color_version)` keys gate merge/quantize redo and
+  layout/paint skipping only, never visitation; see RFC-2 pipeline.)
+  Testable form: a
   one-token delta must leave every other token's snapshot byte-identical to
   the base (§"Testing strategy").
 - **Strongly typed + custom tokens.** The closed `Token` enum covers the
@@ -327,6 +329,12 @@ pub enum ColorTier { Truecolor, Palette256, Ansi16, Mono }
 > travels only the terminal→loop and loop→frame seams; every other
 > module takes its own domain, never the aggregate. Unknown/degraded
 > values are explicit everywhere; guessing is forbidden.
+
+Consumption rule (normative): every consumer takes its own domain struct
+(`ColorProfile` for style, `InputProfile` for input, `ScreenProfile` for
+renderer/lifecycle), never the `TerminalCapabilities` aggregate; the
+aggregate crosses only the terminal→loop and loop→frame seams (cf.
+`docs/research/CAPABILITY_MODEL_RESOLUTION.md` §4).
 
 The `CapabilityProfile` shape itself is on RFC-1 Q14's "measure twice" list
 (profile shape threaded into render/style is expensive to change): fields may
@@ -576,6 +584,10 @@ are two narrow hooks:
    snapshot; changes land on the next boundary — never a torn frame).
    Queue mechanics owned by the lifecycle RFC. Profile shape follows the
    typed-domain hybrid (§5): detect in terminal, consume per-domain.
+   Combined frame-commit invariant (owned by the lifecycle RFC): a committed
+   frame resolves all cells against exactly one start snapshot AND reaches
+   paint only through error-free describe/layout; anything else retains the
+   previous buffer and emits nothing.
 8. **(Shared I — Unicode-hard choices)** Style attaches attributes to grapheme
    clusters, never splits a cluster across differing attributes, and never
    measures width — but truncation of a styled span at a cell boundary (e.g.
@@ -754,6 +766,12 @@ conflicts. Each item states **aligned / resolved / contested**.
   + portability notes (§2); invalidation authority + terminology map + Context
   threading (§6); Q8 harness naming (Testing); R1 no-escape-hatch hardening;
   this cross-review record. Status remains Draft.
+- 2026-10-16 (Phase 1.7): Review amendments — consumption rule (P1),
+  describe-acknowledgment (P2), frame-commit invariant (P3); domain model
+  + Ansi16 default + NO_COLOR policy + mono S+F + dim order + metric-to-Q5
+  + contrast matrix + links + asymmetry + blink refusal + serde wording
+  (Phase 1.6 items, traceability). Evidence:
+  `docs/reviews/RFC3_TERMINAL_READINESS.md`. Status stays Draft.
 - 2026-10-16 (Phase 1.6): Resolution amendments — typed-domain capability
   model (§5: color/input/screen domains + aggregate transport rule);
   Ansi16 conservative default; capability-independent merge + describe note
