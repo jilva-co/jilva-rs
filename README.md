@@ -83,5 +83,4 @@ defaults, docs, and craft.
 
 ## License
 
-Dual-licensed under [MIT](LICENSE-MIT) and [Apache 2.0](LICENSE-APACHE), the
-Rust ecosystem standard. See both files for details.
+Licensed under [MIT](LICENSE).
