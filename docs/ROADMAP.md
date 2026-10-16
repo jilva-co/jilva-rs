@@ -13,11 +13,11 @@ Workspace scaffolding and design groundwork. No engine, renderer, or widgets.
 - [ ] Cargo workspace exactly per `docs/ARCHITECTURE.md` §7
   (`crates/jilva`, `crates/jilva-core`, `crates/jilva-terminal`,
   `examples/`, `tests/`, `benches/`; no root `src/`, no extra crates)
-- [ ] RFC process published (`docs/RFC/README.md` + template)
+- [x] RFC process published (`docs/RFC/README.md` + template)
 - [ ] RFC-1: scope and non-goals
 - [ ] RFC-2: component model
 - [ ] RFC-3: theming
-- [ ] Contributor setup and workspace workflow docs
+- [x] Contributor setup and workspace workflow docs
   (`docs/GETTING_STARTED.md`, `docs/DEVELOPMENT.md`)
 
 Exit criterion: the workspace builds cleanly, facade-only conventions hold for
