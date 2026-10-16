@@ -1,0 +1,24 @@
+# EditorConfig: consistent line endings, encoding, and whitespace.
+# Justification: contributors work on Windows, macOS, and Linux. Without
+# this, Windows CRLF and stray trailing whitespace leak into diffs and break
+# `cargo fmt --check` expectations. rustfmt owns Rust formatting; this file
+# only covers the universal basics every editor understands.
+root = true
+
+[*]
+end_of_line = lf
+charset = utf-8
+trim_trailing_whitespace = true
+insert_final_newline = true
+
+[*.rs]
+indent_style = space
+indent_size = 4
+
+[{Cargo.toml,Cargo.lock}]
+indent_style = space
+indent_size = 2
+
+[{*.yml,*.yaml,*.md,*.toml}]
+indent_style = space
+indent_size = 2
