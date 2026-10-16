@@ -766,6 +766,12 @@ conflicts. Each item states **aligned / resolved / contested**.
   + portability notes (§2); invalidation authority + terminology map + Context
   threading (§6); Q8 harness naming (Testing); R1 no-escape-hatch hardening;
   this cross-review record. Status remains Draft.
+- 2026-10-16 (Phase 1.7): Review amendments — consumption rule (P1),
+  describe-acknowledgment (P2), frame-commit invariant (P3); domain model
+  + Ansi16 default + NO_COLOR policy + mono S+F + dim order + metric-to-Q5
+  + contrast matrix + links + asymmetry + blink refusal + serde wording
+  (Phase 1.6 items, traceability). Evidence:
+  `docs/reviews/RFC3_TERMINAL_READINESS.md`. Status stays Draft.
 - 2026-10-16 (Phase 1.6): Resolution amendments — typed-domain capability
   model (§5: color/input/screen domains + aggregate transport rule);
   Ansi16 conservative default; capability-independent merge + describe note

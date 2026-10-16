@@ -474,7 +474,7 @@ fn update(model: &mut Counter, msg: Msg) -> Change {  // PROPOSED API — NOT YE
         Msg::Incr => model.count += 1,
         Msg::Decr => model.count -= 1,
     }
-    Change::Repaint // RFC-1 Q13 name: state-only, no re-layout
+    Change::Repaint // RFC-1 Q13 name: paint-only, no re-layout
 }
 fn view(model: &Counter, ctx: &Context) -> Result<View, Error> {  // PROPOSED API — NOT YET IMPLEMENTED
     Ok(View::text(format!("count: {}", model.count)))

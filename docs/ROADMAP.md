@@ -57,6 +57,12 @@ Exit criterion: golden-output tests (frame in → expected instruction stream
 out) cover the buffer/diff/damage behaviour; performance posture is
 quantified by RFC and benches, not adjectives.
 
+Phase-3 exit obligation (tracked, from RFC-1 Unicode row + Phase-1.7
+audit): the provisional `Cell { symbol: char }` model MUST be replaced by
+the grapheme-capable symbol type + width/segmentation authorities no later
+than this phase — golden tests must not entrench a `char`-shaped API
+(RFC-2 §8 dependency, RFC-1 OQ12).
+
 ## Phase 4 — Layout & Components (planned)
 
 Intent-based layout and the component contract (`docs/ARCHITECTURE.md` §3.3,
