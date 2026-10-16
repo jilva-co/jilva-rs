@@ -1,0 +1,27 @@
+[package]
+name = "jilva"
+# unreleased Phase-1 foundation
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Public facade for jilva-rs (Phase-1 re-exports only, no logic)"
+
+[dependencies]
+jilva-core = { version = "0.0.0", path = "../jilva-core" }
+jilva-terminal = { version = "0.0.0", path = "../jilva-terminal" }
+
+[lints]
+workspace = true
+
+# Root-level example and integration test live in the repo layout required by
+# docs/ARCHITECTURE.md §7 (examples/, tests/) but a virtual workspace root is
+# not a Cargo target, so they are wired here to the facade crate. They may
+# import the facade only — never jilva-core or jilva-terminal directly.
+[[example]]
+name = "version"
+path = "../../examples/version.rs"
+
+[[test]]
+name = "facade_smoke"
+path = "../../tests/facade_smoke.rs"

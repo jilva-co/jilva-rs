@@ -1,0 +1,22 @@
+# Workspace manifest ONLY: members plus shared package metadata.
+# No [package], no src/ at the root, no logic. See docs/ARCHITECTURE.md §7.
+
+[workspace]
+members = [
+    "crates/jilva",
+    "crates/jilva-core",
+    "crates/jilva-terminal",
+]
+resolver = "2"
+
+# Shared lint configuration enforced in every member crate.
+[workspace.lints.rust]
+unsafe_code = "forbid"
+missing_docs = "deny"
+
+[workspace.package]
+# unreleased Phase-1 foundation
+version = "0.0.0"
+edition = "2024"
+license = "MIT"
+repository = "https://github.com/jilva-co/jilva-rs"

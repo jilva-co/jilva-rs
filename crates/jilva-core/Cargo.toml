@@ -1,0 +1,11 @@
+[package]
+name = "jilva-core"
+# unreleased Phase-1 foundation
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Framework foundations for jilva-rs (Phase-1 minimal types only, no engine)"
+
+[lints]
+workspace = true

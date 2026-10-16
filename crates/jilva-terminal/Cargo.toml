@@ -1,0 +1,11 @@
+[package]
+name = "jilva-terminal"
+# unreleased Phase-1 foundation
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Terminal backend abstraction for jilva-rs (Phase-1 seam and test double only)"
+
+[lints]
+workspace = true
