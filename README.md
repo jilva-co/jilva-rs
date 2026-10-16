@@ -1,31 +1,75 @@
-# jilva-rs
+<p align="center">
+  <img src="https://raw.githubusercontent.com/jilva-co/.github/main/profile/jilva-logo.png" width="120" alt="Jilva logo" />
+</p>
 
-**Beautiful terminal user interfaces in Rust.** *In design — no code yet.*
+<h1 align="center">jilva-rs</h1>
 
-`jilva-rs` is the first Jilva framework: a TUI framework for Rust that treats
-beauty as a feature. Calm defaults, thoughtful components, and documentation
-you actually enjoy reading.
+<p align="center"><strong>Jilva — Beautiful terminal applications, effortlessly.</strong></p>
 
-> **Status:** we are writing RFCs before code. There is no crate, no API,
-> and no release date. If you want to shape it, start with an RFC.
+<p align="center">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License: MIT" /></a>
+  <img src="https://img.shields.io/badge/toolchain-1.98.1-orange.svg" alt="Rust toolchain: stable 1.98.1" />
+  <img src="https://img.shields.io/badge/edition-2024-lightgrey.svg" alt="Rust edition: 2024" />
+</p>
+
+`jilva-rs` is the first Jilva framework: a terminal UI (TUI) framework for Rust
+that treats beauty as a feature. Calm defaults, thoughtful components, and
+documentation you actually enjoy reading.
+
+> **Status:** Phase 1 — Foundation. The Cargo workspace
+> (`crates/jilva`, `crates/jilva-core`, `crates/jilva-terminal`) is being laid
+> out and the design is being settled through RFCs. There is no engine,
+> renderer, or widget set yet, and no release. See
+> [Roadmap](#roadmap) and [`docs/ROADMAP.md`](docs/ROADMAP.md).
 
 Part of [`jilva-co`](https://github.com/jilva-co) — beautiful frameworks for developers.
 
-## Vision
+## Philosophy
+
+- **Beauty as a feature, correctness underneath.** Defaults carry the taste;
+  the foundations carry Unicode, input, resize, and restoration semantics.
+- **Intent over mechanics.** Users describe *what* (`row`, `accent`,
+  `on_select`), never *how* (coordinates, ANSI codes, escape sequences).
+- **Small stable seams, free interiors.** Crate boundaries are narrow and
+  documented; interiors may evolve within semver.
+- **No ambient global state.** Terminal mode, styling context, and app state
+  are passed explicitly, so rendering stays testable without a real terminal.
+- **No async runtime in the core contract.** Synchronous operation is the
+  baseline; async integration, if any, is an opt-in layer above the core.
+- **Docs are part of the API.** Every public item is documented with a runnable
+  example; if a sentence here confuses you, that is a bug.
+
+## Why Jilva
 
 Building a terminal UI today means choosing between raw power with rough edges
 or simplicity that fights you later. `jilva-rs` aims for a third option:
 
-- **Components that look right out of the box** — tables, forms, lists, command palettes, charts — with curated themes.
-- **Layout that reads like intent** — flex and grid, not manual pixel math.
+- **Components that look right out of the box** — tables, forms, lists, command
+  palettes, charts — with curated themes.
+- **Layout that reads like intent** — flex and grid, not manual cell math.
 - **Motion with restraint** — tasteful transitions and live updates, never noise.
-- **Correctness underneath** — Unicode, truecolor, mouse + keyboard, resize handling, testable rendering.
+- **Correctness underneath** — Unicode graphemes, double-width and emoji
+  handling, truecolor with graceful degradation, mouse + keyboard, resize
+  handling, testable rendering.
+
+Built with respect for `ratatui`, `cursive`, `Bubble Tea`, and `Textual` —
+each proved part of the idea. Jilva's bet is that the next step is taste:
+defaults, docs, and craft. Jilva positions itself as one more experiment in
+that lineage, not as a replacement.
+
+## Rust first, future languages later
+
+Rust is the reference implementation: the architecture, component model, and
+design system are proven here first. Sibling frameworks (`jilva-go`,
+`jilva-ts`) start only after the Rust alpha is genuinely usable — see
+[`docs/ROADMAP.md`](docs/ROADMAP.md). Lessons, RFCs, and the theme vocabulary
+are shared; each language keeps its own idiomatic API.
 
 ## Scope
 
 In scope for `0.1.0` (to be confirmed by RFC):
 
-- Core rendering loop and component model
+- Core run loop and component model
 - Layout (flex, grid)
 - Theming
 - Essential widgets (text, list, table, input, tabs, status bar)
@@ -36,30 +80,107 @@ Non-goals (at least for now):
 - A full application framework (config, networking, etc.)
 - Tying you to a specific async runtime
 
-Open questions live in [`docs/RFC/`](docs/RFC/).
+Open questions live in [`docs/RFC/`](docs/RFC/). The MSRV number itself is
+RFC-track; until that RFC lands, code must build on stable **1.98.1** with no
+nightly features.
 
-## Roadmap
+## Getting started (contributors)
 
-See [`docs/ROADMAP.md`](docs/ROADMAP.md). Short version:
+Prerequisites: Git and Rust stable **1.98.1** (edition 2024). New to the repo?
+Start with [`docs/GETTING_STARTED.md`](docs/GETTING_STARTED.md); workspace
+workflow details live in [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md).
 
-1. RFCs (now) — scope, component model, theming
-2. Prototype (later) — private branch, throwaway code to test ideas
-3. Public alpha `0.1.0` (later) — only when the API survives review
+```bash
+git clone https://github.com/jilva-co/jilva-rs.git
+cd jilva-rs
+cargo check --workspace
+cargo test --workspace
+```
 
-## Repository layout
+Targeted checks while working on one crate:
+
+```bash
+cargo check -p jilva
+cargo check -p jilva-core
+cargo check -p jilva-terminal
+```
+
+## Repository structure
+
+The agreed Phase 1 layout (see `docs/ARCHITECTURE.md` §7):
 
 ```text
 jilva-rs/
-  README.md          this file
-  SECURITY.md        how to report vulnerabilities
-  CONTRIBUTING.md    how to help (design stage rules)
-  LICENSE-APACHE / LICENSE-MIT
+  Cargo.toml                  # workspace manifest ONLY (members + shared lints)
+  LICENSE                     # MIT
+  README.md / SECURITY.md / CONTRIBUTING.md / CHANGELOG.md
   docs/
-    ROADMAP.md       stages and milestones
-    RFC/             design proposals (start here to contribute)
+    ARCHITECTURE.md           # system boundaries, crates, dependency rules
+    API_DESIGN.md             # API principles and facade contract
+    ROADMAP.md                # the 7 phases
+    GETTING_STARTED.md        # contributor setup
+    DEVELOPMENT.md            # workspace workflow
+    RFC/                      # design proposals (start here to contribute)
+    adr/                      # accepted architectural decisions
+  crates/
+    jilva/                    # public facade: re-exports + docs only, no logic
+    jilva-core/               # foundations: lifecycle, component, events,
+                              # layout, renderer model, style, error (modules)
+    jilva-terminal/           # backend seam + test double (a default backend
+                              # is RFC detail, see ADR-0003); the only crate
+                              # that will touch terminal I/O
+  examples/                   # one tiny example per concept; facade-only imports
+  tests/                      # workspace integration tests (golden-output, no TTY)
+  benches/                    # reserved for future frame/diff micro-benchmarks
+                              # (no benchmarks in Phase 1 — nothing to measure yet)
 ```
 
-No `src/` yet — deliberately. Code arrives after RFC acceptance.
+Conventions: `examples/` and `tests/` import only the `jilva` facade, never
+`jilva-core` or `jilva-terminal` directly. No `src/` at the workspace root. No
+additional top-level crates in Phase 1 — reserved names (`jilva-render`,
+`jilva-layout`, `jilva-style`, `jilva-widgets`, `jilva-motion`,
+`jilva-devtools`, `jilva-cli`) are integration points only, created solely via
+the extraction rule in `docs/ARCHITECTURE.md` §4.2.
+
+## Architecture overview
+
+The full contract is [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md); the
+public-surface rules are [`docs/API_DESIGN.md`](docs/API_DESIGN.md). Short
+version:
+
+- **`jilva`** is the only crate users depend on. It re-exports a curated
+  surface and contains no logic.
+- **`jilva-core`** holds the framework foundations (app lifecycle, component
+  contract, state/event propagation, layout protocol, renderer buffer/diff
+  model, style tokens, error taxonomy). It is platform-agnostic, names no
+  backend, and must stay testable with no TTY.
+- **`jilva-terminal`** owns everything that touches a real terminal behind a
+  narrow backend seam, plus capability detection and an in-memory test double.
+- The dependency graph is acyclic: user app → `jilva` → `jilva-core`, and
+  `jilva` → `jilva-terminal`. `jilva-core` depends on nothing in the workspace.
+- Rendering is a pure function of (previous buffer, new frame description) plus
+  an explicit capability profile — so golden-output tests run headless.
+- The exact component contract (trait vs. struct+closure, Elm-style vs.
+  immediate-mode vs. retained) is decided by RFC-2; the theme schema by RFC-3.
+  Where this README and an accepted RFC disagree, the accepted RFC wins.
+
+## Roadmap
+
+See [`docs/ROADMAP.md`](docs/ROADMAP.md) for the full plan. No dates — phases
+move when the work is honestly done.
+
+| Phase | Name | State |
+|---|---|---|
+| 1 | Foundation | Current |
+| 2 | Terminal Engine | Planned |
+| 3 | Rendering Engine | Planned |
+| 4 | Layout & Components | Planned |
+| 5 | State & Interactivity | Planned |
+| 6 | Design System | Planned |
+| 7 | Alpha Release (`0.1.0`) | Planned |
+
+Breaking changes are expected through `0.x`. `1.0` ships only when the API is
+stable and proven in real apps.
 
 ## Contributing
 
@@ -67,12 +188,13 @@ Design stage: ideas and scrutiny matter more than code.
 
 1. Read the [RFC process](docs/RFC/README.md).
 2. Open a [Discussion](https://github.com/orgs/jilva-co/discussions) before a PR.
-3. Read [CONTRIBUTING.md](CONTRIBUTING.md) and the org [Code of Conduct](https://github.com/jilva-co/.github/blob/main/CODE_OF_CONDUCT.md).
+3. Read [CONTRIBUTING.md](CONTRIBUTING.md) and the org
+   [Code of Conduct](https://github.com/jilva-co/.github/blob/main/CODE_OF_CONDUCT.md).
 
 ```bash
 git clone https://github.com/jilva-co/jilva-rs.git
 cd jilva-rs
-# no build step yet — read docs/RFC/ instead
+# design discussion first — see docs/RFC/; code follows accepted RFCs
 ```
 
 ## Prior art
@@ -83,4 +205,5 @@ defaults, docs, and craft.
 
 ## License
 
-Licensed under [MIT](LICENSE).
+Licensed under [MIT](LICENSE). Security reports: see [SECURITY.md](SECURITY.md).
+Changes are tracked in [CHANGELOG.md](CHANGELOG.md).

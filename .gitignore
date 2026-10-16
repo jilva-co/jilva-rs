@@ -1,0 +1,22 @@
+# Rust build output — regenerable, large, never committed.
+/target/
+
+# Cargo.lock is NOT committed for this lib-only workspace.
+# Standard Rust library practice: applications commit Cargo.lock for
+# reproducible builds; libraries omit it so downstream resolvers are not
+# pinned by the library author. This workspace ships no binaries, so the
+# lockfile would only add merge noise. (If a binary/example target or a
+# crates.io-published app is added later, revisit: commit Cargo.lock then.)
+Cargo.lock
+
+# Compiler / editor backups.
+**/*.rs.bk
+
+# IDE directories — contributors use whatever editor they like; none of
+# these belong in version control.
+.idea/
+.vscode/
+
+# OS noise (Windows/macOS file-manager artifacts).
+Thumbs.db
+.DS_Store
