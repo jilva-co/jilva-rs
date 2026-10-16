@@ -1,0 +1,10 @@
+[package]
+name = "exp04-send-policy"
+version = "0.0.0"
+edition = "2024"
+license = "MIT"
+
+[workspace]
+
+[lints.rust]
+unsafe_code = "forbid"

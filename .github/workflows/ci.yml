@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main, phase1-foundation]
+    branches: [main, phase1-foundation, phase1.5-rfc-sprint, phase1.6-architecture-resolution]
   pull_request:
 
 # Least privilege: read-only repo access is all CI needs.

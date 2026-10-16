@@ -439,8 +439,11 @@ borrow and what we deliberately reject.
   `ratatui-widgets` built-ins); layout via `Constraint`/`Direction`/`Layout`;
   rich widget set (charts, sparklines, tables, gauges, lists). Borrow:
   backend-trait swappability, buffer+diff discipline, constraint vocabulary
-  inspiration. Reject: leaving the run loop, state ownership, and
-  restoration to user code — Jilva owns the loop (Q1). Interpretation:
+  inspiration. Reject: leaving the run loop and state ownership to user code
+  — Jilva owns the loop (Q1). Precision note (Phase 1.6): modern Ratatui
+  ships `run()`/`init()`/`restore()` helpers with panic hooks, so the
+  contrast is on loop+state ownership, not on restoration plumbing — which
+  Ratatui also handles. Interpretation:
   Ratatui's positioning as renderer+widgets (user owns the loop) is the
   clearest contrast justifying our framework claim.
 - **Bubble Tea** (Go, Charm; MIT — interpretation, widely reported; verify
