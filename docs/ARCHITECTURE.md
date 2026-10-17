@@ -39,6 +39,9 @@ RFCs), CI/build configuration, `Cargo.toml` contents, and any code.
    versioned, and documented. Interiors may evolve freely within semver.
 3. **No ambient global state.** Terminal mode, styling context, and app state
    are passed explicitly so rendering stays testable without a real terminal.
+   The real backend has one documented process-wide ownership lease because
+   Crossterm input/raw modes are process resources. It carries no application
+   data, capabilities, or backend selector; test doubles have no global lease.
 4. **No async runtime in the core contract.** The framework must not force a
    choice of async runtime on its users (a README-level non-goal). Synchronous
    operation is the baseline; async integration, if any, is an opt-in layer

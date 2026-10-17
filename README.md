@@ -16,11 +16,12 @@
 that treats beauty as a feature. Calm defaults, thoughtful components, and
 documentation you actually enjoy reading.
 
-> **Status:** Phase 1 — Foundation. The Cargo workspace
-> (`crates/jilva`, `crates/jilva-core`, `crates/jilva-terminal`) is being laid
-> out and the design is being settled through RFCs. There is no engine,
-> renderer, or widget set yet, and no release. See
-> [Roadmap](#roadmap) and [`docs/ROADMAP.md`](docs/ROADMAP.md).
+> **Status:** Phase 2 — Terminal Engine, ready for maintainer review. Synchronous
+> Crossterm integration, typed input/output, capability profiles, and a
+> deterministic headless backend are implemented. The framework is unreleased
+> (`0.0.0`); the renderer, application runtime, layout engine, and widgets are
+> future work. See [`docs/PHASE2_TERMINAL_ENGINE.md`](docs/PHASE2_TERMINAL_ENGINE.md)
+> for the supported contract and limitations.
 
 Part of [`jilva-co`](https://github.com/jilva-co) — beautiful frameworks for developers.
 
@@ -67,7 +68,7 @@ are shared; each language keeps its own idiomatic API.
 
 ## Scope
 
-In scope for `0.1.0` (to be confirmed by RFC):
+In scope for `0.1.0` under accepted RFC-0001/0002/0003:
 
 - Core run loop and component model
 - Layout (flex, grid)
@@ -97,6 +98,20 @@ cargo check --workspace
 cargo test --workspace
 ```
 
+Run the real terminal demonstration from an interactive terminal. Type keys,
+resize the window, and exit with `q`, Escape, or Ctrl+C:
+
+```bash
+cargo run -p jilva --example backend_demo
+```
+
+For CI and redirected output, use the headless example. Disabling default
+features excludes Crossterm and its OS dependencies:
+
+```bash
+cargo run -p jilva --no-default-features --example headless_demo
+```
+
 Targeted checks while working on one crate:
 
 ```bash
@@ -107,7 +122,7 @@ cargo check -p jilva-terminal
 
 ## Repository structure
 
-The agreed Phase 1 layout (see `docs/ARCHITECTURE.md` §7):
+The workspace layout (see `docs/ARCHITECTURE.md` §7):
 
 ```text
 jilva-rs/
@@ -126,9 +141,8 @@ jilva-rs/
     jilva/                    # public facade: re-exports + docs only, no logic
     jilva-core/               # foundations: lifecycle, component, events,
                               # layout, renderer model, style, error (modules)
-    jilva-terminal/           # backend seam + test double (a default backend
-                              # is RFC detail, see ADR-0003); the only crate
-                              # that will touch terminal I/O
+    jilva-terminal/           # optional Crossterm backend, detection, test double;
+                              # the only crate that performs terminal I/O
   examples/                   # one tiny example per concept; facade-only imports
   tests/                      # workspace integration tests (golden-output, no TTY)
   benches/                    # reserved for future frame/diff micro-benchmarks
@@ -156,13 +170,13 @@ version:
   backend, and must stay testable with no TTY.
 - **`jilva-terminal`** owns everything that touches a real terminal behind a
   narrow backend seam, plus capability detection and an in-memory test double.
-- The dependency graph is acyclic: user app → `jilva` → `jilva-core`, and
-  `jilva` → `jilva-terminal`. `jilva-core` depends on nothing in the workspace.
+- The dependency graph is acyclic: user app → `jilva` → `jilva-terminal`
+  → `jilva-core`, with a direct facade → core edge. Shared events, output
+  commands, and capability data live in core, which has no dependencies.
 - Rendering is a pure function of (previous buffer, new frame description) plus
   an explicit capability profile — so golden-output tests run headless.
-- The exact component contract (trait vs. struct+closure, Elm-style vs.
-  immediate-mode vs. retained) is decided by RFC-2; the theme schema by RFC-3.
-  Where this README and an accepted RFC disagree, the accepted RFC wins.
+- RFC-2 accepts the component model and RFC-3 the theming architecture.
+  Their runtime implementations belong to subsequent roadmap milestones.
 
 ## Roadmap
 
@@ -171,8 +185,8 @@ move when the work is honestly done.
 
 | Phase | Name | State |
 |---|---|---|
-| 1 | Foundation | Current |
-| 2 | Terminal Engine | Planned |
+| 1 | Foundation | Complete |
+| 2 | Terminal Engine | Verified; ready for maintainer review |
 | 3 | Rendering Engine | Planned |
 | 4 | Layout & Components | Planned |
 | 5 | State & Interactivity | Planned |
@@ -184,7 +198,8 @@ stable and proven in real apps.
 
 ## Contributing
 
-Design stage: ideas and scrutiny matter more than code.
+Architectural changes follow the maintainer-driven RFC process; public
+Discussions remain welcome without a mandatory waiting period.
 
 1. Read the [RFC process](docs/RFC/README.md).
 2. Open a [Discussion](https://github.com/orgs/jilva-co/discussions) before a PR.

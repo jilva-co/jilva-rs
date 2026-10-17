@@ -44,9 +44,9 @@ Location: `crates/jilva-terminal/src/backend.rs`. Trait name: `Backend`
 
 Responsibility: the ONLY path by which framework bytes reach or leave a real
 terminal. The framework drives; the backend obeys. The backend MUST NOT
-name components, app state, style tokens, or layout types (ADR-0003
+consume components, app state, style tokens, or layout intent (ADR-0003
 decision 2); it receives fully-resolved draw instructions and emits
-decoded input events.
+decoded input events. Plain cell geometry such as `Rect` is permitted.
 
 Method set (all required; existing `name`/`enter`/`leave` signatures are
 preserved byte-for-byte to avoid churning tested code):
@@ -64,7 +64,8 @@ pub trait Backend {
     fn leave(&mut self) -> std::io::Result<()>;
 
     // — observation —
-    // Current terminal size in cells. MUST return a non-degenerate size:
+    // Cached terminal size in cells, refreshed by consumed resize events.
+    // MUST return a non-degenerate size:
     // a zero width or height is reported as an error, never as (0, 0).
     fn size(&self) -> std::io::Result<(u16, u16)>;
 
@@ -327,11 +328,14 @@ developer-aimed messages; lifecycle teardown still attempts restoration
 ## 6. Session ownership + reentrancy rules
 
 - One live session per backend instance. `enter` on an entered backend ⇒
-  error (`ErrorKind::Other`, "already entered"). `leave` on a
-  non-entered backend ⇒ `Ok(())` (idempotent, so `Drop` guards and
+  `ErrorKind::AlreadyExists`; entry with dirty cleanup state ⇒
+  `ErrorKind::WouldBlock`. Inactive input/output/size operations ⇒
+  `ErrorKind::NotConnected`. `leave` on a
+  fully inactive backend ⇒ `Ok(())` (idempotent, so `Drop` guards and
   double-teardown paths are safe). `size` / `poll` / `read` / `submit` /
   `flush` outside a live session ⇒ error (fail-loud, never operate on a
-  dead terminal).
+  dead terminal). A failed setup/leave may retain dirty resource flags while
+  `is_entered` is false; `leave` retries those flags and may still fail.
 - `enter` is a tracked setup transaction: detect + acquire raw mode and the
   configured supported modes (alternate screen, mouse, optional input modes).
   Each successful step and potentially partial terminal command must be
@@ -392,24 +396,24 @@ enter/leave/log core is kept and its existing test keeps passing).
 
 ## 8. Phase-2 exit checklist (implementer proves each)
 
-- [ ] `Backend` trait carries the full §1 set; both backends (real +
+- [x] `Backend` trait carries the full §1 set; both backends (real +
   double) implement it; `forbid(unsafe_code)` holds workspace-wide.
-- [ ] Core owns `capabilities.rs` / `events.rs` (`InputEvent`) /
+- [x] Core owns `capabilities.rs` / `events.rs` (`InputEvent`) /
   `output.rs`; terminal depends on core for types only
   (`cargo tree` shows no `jilva-core → jilva-terminal` edge, no cycle);
   old placeholder types fully superseded (§4.2 migration notes done).
-- [ ] `Terminal → loop` seam carries only `InputEvent` /
+- [x] `Terminal → loop` seam carries only `InputEvent` /
   `TerminalCapabilities` data; `loop → terminal` carries only
   `&[OutputCommand]`; backend sees no tokens, no components, no state.
-- [ ] Golden-output + scripted-event tests green with no TTY; determinism
+- [x] Golden-output + scripted-event tests green with no TTY; determinism
   rule (§7) asserted by at least one replay-twice test.
-- [ ] Backend error paths (§5) covered, including unsupported-event filtering,
+- [x] Backend error paths (§5) covered, including unsupported-event filtering,
   decoder I/O propagation, validation, flush discard and leave-idempotency.
   Runtime callback wrapping remains Phase 5, not a Phase-2 test claim.
-- [ ] New dependencies justified under ARCHITECTURE.md §6 rule 6, compatible
+- [x] New dependencies justified under ARCHITECTURE.md §6 rule 6, compatible
   licensing reviewed; workspace source MIT; edition 2024; stable 1.98.1,
   no nightly. Lockfile records the selected dependency graph.
-- [ ] Facade-only imports in `examples/`/`tests/`; facade re-exports the
+- [x] Facade-only imports in `examples/`/`tests/`; facade re-exports the
   new public types under flat paths (API_DESIGN.md §2).
 
 ## 9. Traceability (contract → authority)

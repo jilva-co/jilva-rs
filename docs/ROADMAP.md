@@ -10,9 +10,10 @@ Workspace scaffolding and design groundwork. No engine, renderer, or widgets.
 - [x] Repo vision (this repo's README)
 - [x] Architecture boundaries and crate structure (`docs/ARCHITECTURE.md`)
 - [x] API principles and facade contract (`docs/API_DESIGN.md`)
-- [ ] Cargo workspace exactly per `docs/ARCHITECTURE.md` §7
+- [x] Cargo workspace per `docs/ARCHITECTURE.md` §7
   (`crates/jilva`, `crates/jilva-core`, `crates/jilva-terminal`,
-  `examples/`, `tests/`, `benches/`; no root `src/`, no extra crates)
+  `examples/`, `tests/`; `benches/` reserved until benchmarks exist;
+  no root `src/`, no extra crates). Rechecked 2026-10-17.
 - [x] RFC process published (`docs/RFC/README.md` + template)
   (governance amended 2026-10-16: maintainer-driven approval, external
   7-day wait waived by project owner — see `docs/RFC/README.md`)
@@ -26,39 +27,45 @@ Workspace scaffolding and design groundwork. No engine, renderer, or widgets.
 
 Exit criterion: the workspace builds cleanly, facade-only conventions hold for
 `examples/` and `tests/`, and RFC-1/2/3 are accepted. — MET 2026-10-16
-(acceptances recorded; workspace-verification box above remains with the
-implementation track).
+(historical acceptance record preserved; workspace and current acceptance
+authorization revalidated 2026-10-17).
 
-## Phase 2 — Terminal Engine (started 2026-10-16, in progress 2026-10-17)
+## Phase 2 — Terminal Engine (verified; ready for maintainer review 2026-10-17)
 
 The backend seam behind which all real-terminal contact lives
 (`docs/ARCHITECTURE.md` §3.5, §3.10).
 
-Current inspection: a trait, shared event/output/capability types, Crossterm
-implementation and scripted test double already exist in the working tree.
-Their presence is not an exit verification. The 2026-10-17 continuation
-revalidates governance and corrects backend semantics; implementation and
-independent audit continue. See `docs/reviews/RFC_ACCEPTANCE_CHECKLIST.md`.
+The existing implementation was audited and completed: a synchronous optional
+Crossterm backend, typed events/output/capabilities, retryable resource cleanup,
+deterministic headless backend, and separate real/headless demos. Verification
+is recorded in `docs/reviews/PHASE2_CONTINUATION_REPORT.md`; this status does
+not imply a merged PR, publication, runtime, renderer, or widget library.
 
 - [x] Current authorization, technical acceptance and stable seam decisions
   recorded with historical evidence limitations (2026-10-17).
-- [ ] Implementation behavior verified against the corrected backend contract.
-- [ ] Required Cargo checks, tests, formatting, Clippy and strict rustdoc pass.
-- [ ] Linux, Windows and macOS CI outcomes observed and reported accurately.
-- [ ] Minimal terminal demo builds; interactive/PTY validation reported
+- [x] Implementation behavior verified against the corrected backend contract.
+- [x] Required Cargo checks, tests, formatting, Clippy and strict rustdoc pass.
+- [x] Linux, Windows and macOS CI outcomes observed and reported accurately.
+- [x] Minimal terminal demo builds; interactive/PTY validation reported
   separately from headless tests.
-- [ ] Independent terminal-engine audit has no unresolved blocker.
+- [x] Independent terminal-engine audit has no unresolved blocker.
 
-Keep Phase 2 in progress until its actual verification and platform evidence
-are recorded. A configured CI matrix or an opened PR is not a successful run.
+Evidence: 111 headless unit/integration tests and 27 doctests pass locally;
+the opt-in Windows ConPTY normal/panic restoration test passes separately.
+Ubuntu, Windows and macOS quality jobs plus formatting pass in
+[CI run 39000026013](https://github.com/jilva-co/jilva-rs/actions/runs/39000026013)
+for `9fef589`. Earlier runs failed formatting; their correction and results
+are retained in the continuation report. PR #8 awaits maintainer review and
+must not be merged automatically. Physical terminal coverage remains limited
+as documented; headless CI is not visual validation.
 
 - Backend capability interface plus capability model and detection
-  (truecolor, unicode support level, mouse, progressive key encoding,
+  (truecolor/256/ANSI16/mono tiers, mouse, reported key kinds,
   alternate screen)
 - Default backend implementation (Crossterm-based per ADR-0003)
 - In-memory test double as a first-class, documented API for headless tests
-- Platform matrix: Unix/Windows console differences, resize plumbing,
-  documented degradation when capabilities are absent
+- Platform matrix: Unix/Windows headless verification, resize plumbing,
+  documented optional-mode and Unicode-width limitations
 
 Exit criterion: golden-output and scripted-event tests run with no TTY;
 `jilva-core` names no backend and contains no platform branching.

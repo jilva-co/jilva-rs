@@ -11,6 +11,13 @@ an RFC amendment (see `docs/ARCHITECTURE.md` §3.1).
 
 ### Added
 
+- Phase 2 synchronous terminal engine: optional Crossterm backend, tracked
+  session cleanup, typed input/output, capability snapshots, and deterministic
+  headless failure injection. The public facade exposes the backend contract.
+- Real terminal and headless examples, multi-platform headless CI, terminal
+  implementation/testing guides, and independent audit records.
+- Maintainer-authorized RFC acceptance revalidation dated 2026-10-17, preserving
+  earlier Discussion history and deferred implementation decisions.
 - Foundation documentation: system boundaries, crate structure, and dependency
   rules (`docs/ARCHITECTURE.md`); API principles and facade contract
   (`docs/API_DESIGN.md`).
