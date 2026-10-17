@@ -1,9 +1,14 @@
-//! App lifecycle states (`docs/ARCHITECTURE.md` §3.2).
+//! App lifecycle (`docs/ARCHITECTURE.md` §3.2, `docs/RFC/0008-app-runtime.md`).
 //!
-//! **Phase-1 status:** only the state vocabulary and its legal transitions
-//! exist. There is no run loop, no setup/teardown implementation, and no
-//! shutdown signalling yet — the loop contract (including terminal
-//! restoration on every exit path) is implementation-RFC detail.
+//! [`LifecycleState`] is the state vocabulary. The runtime slice adds the
+//! [`Model`] trait an application implements and the sans-IO [`App`]
+//! runtime that turns (input, time) into output commands behind the
+//! [`Driven`] trait. Terminal setup, the clock, and restoration on every exit
+//! path belong to the driver in `jilva-terminal`; nothing here performs I/O.
+
+mod app;
+
+pub use app::{App, Context, Driven, Effects, Model};
 
 /// Lifecycle state of an application run.
 ///

@@ -35,6 +35,12 @@ pub enum Error {
     Render(String),
     /// Error propagated from a user-supplied callback.
     Callback(String),
+    /// One source event produced more follow-up messages than the runtime
+    /// processes in one batch (RFC-2 §1 rule 4). Reported instead of hanging.
+    UpdateOverflow {
+        /// The follow-up limit that was exceeded.
+        limit: usize,
+    },
 }
 
 impl fmt::Display for Error {
@@ -46,6 +52,10 @@ impl fmt::Display for Error {
             Self::Layout(message) => write!(f, "layout error: {message}"),
             Self::Render(message) => write!(f, "render error: {message}"),
             Self::Callback(message) => write!(f, "user callback error: {message}"),
+            Self::UpdateOverflow { limit } => write!(
+                f,
+                "update overflow: one event produced more than {limit} follow-up messages"
+            ),
         }
     }
 }
@@ -58,7 +68,8 @@ impl std::error::Error for Error {
             | Self::Lifecycle(_)
             | Self::Layout(_)
             | Self::Render(_)
-            | Self::Callback(_) => None,
+            | Self::Callback(_)
+            | Self::UpdateOverflow { .. } => None,
         }
     }
 }
@@ -92,6 +103,16 @@ mod tests {
         let error = Error::from(io_error);
         assert!(matches!(error, Error::Io(_)));
         assert!(std::error::Error::source(&error).is_some());
+    }
+
+    #[test]
+    fn update_overflow_names_its_limit() {
+        let error = Error::UpdateOverflow { limit: 4 };
+        assert_eq!(
+            error.to_string(),
+            "update overflow: one event produced more than 4 follow-up messages"
+        );
+        assert!(std::error::Error::source(&error).is_none());
     }
 
     #[test]

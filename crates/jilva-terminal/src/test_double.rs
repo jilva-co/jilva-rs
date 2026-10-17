@@ -327,6 +327,8 @@ pub struct TestDoubleBackend {
     flush_calls: u64,
     /// Per-operation call counters (see `enter_calls`).
     leave_calls: u64,
+    /// When set, `poll` on a drained script fails with `UnexpectedEof`.
+    eof_when_exhausted: bool,
 }
 
 impl Default for TestDoubleBackend {
@@ -377,6 +379,7 @@ impl TestDoubleBackend {
             submit_calls: 0,
             flush_calls: 0,
             leave_calls: 0,
+            eof_when_exhausted: false,
         }
     }
 
@@ -667,6 +670,32 @@ impl TestDoubleBackend {
     /// Fails the next `poll` with `kind`.
     pub fn fail_poll_once(&mut self, kind: io::ErrorKind) {
         self.inject_once(FailOp::Poll, kind);
+    }
+
+    /// Makes `poll` fail with [`io::ErrorKind::UnexpectedEof`] once the
+    /// scripted input is drained, instead of reporting "not ready" forever.
+    ///
+    /// A run loop driven by this double then stops with an error when a
+    /// script ends without a quit, rather than spinning: use it in tests of
+    /// code that loops until input says to stop.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use std::io;
+    /// use std::time::Duration;
+    /// use jilva_terminal::{Backend, TestDoubleBackend};
+    ///
+    /// let mut backend = TestDoubleBackend::default();
+    /// backend.fail_poll_when_exhausted();
+    /// backend.enter()?;
+    /// let error = backend.poll(Duration::ZERO).expect_err("script is empty");
+    /// assert_eq!(error.kind(), io::ErrorKind::UnexpectedEof);
+    /// backend.leave()?;
+    /// # Ok::<(), io::Error>(())
+    /// ```
+    pub const fn fail_poll_when_exhausted(&mut self) {
+        self.eof_when_exhausted = true;
     }
 
     /// Fails every future `read` with `kind`.
@@ -1205,6 +1234,13 @@ impl Backend for TestDoubleBackend {
         }
         self.script.append(&mut self.staged_script);
         let pending = !self.script.is_empty();
+        if !pending && self.eof_when_exhausted {
+            self.call_log.push("poll:exhausted".to_string());
+            return Err(io::Error::new(
+                io::ErrorKind::UnexpectedEof,
+                "test-double: poll: scripted input exhausted",
+            ));
+        }
         self.call_log.push(format!("poll→{pending}"));
         Ok(pending)
     }

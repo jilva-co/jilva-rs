@@ -9,7 +9,23 @@ an RFC amendment (see `docs/ARCHITECTURE.md` §3.1).
 
 ## [Unreleased]
 
+### Changed
+
+- Breaking (unreleased placeholder): the Phase-1 `Event { Tick, Resized,
+  Custom(String) }` is replaced by `Event<M>` with `Key`, `Mouse`, `Paste`,
+  `Resize`, `TerminalFocus` and `Message(M)`.
+
 ### Added
+
+- App runtime slice A (RFC-0008 Draft): the `Model` trait, `Event<M>`
+  dispatch taxonomy with `KeyEvent::{is_text, is_special, is_ctrl,
+  plain_text}`, `Outcome`/`Change`, `Effects` (quit, FIFO follow-ups, 1024
+  cap with `Error::UpdateOverflow`), `Context`, and the sans-IO `App` runtime
+  behind the `Driven` trait. `jilva::run` / `run_with` drive it from
+  `jilva-terminal`, restoring the terminal on return, error and panic unwind.
+  Defaults: key releases dropped, Ctrl+C quits when ignored. `counter`
+  example; `tests/app_runtime.rs`; `TestDoubleBackend::fail_poll_when_exhausted`
+  so a script without a quit fails instead of spinning.
 
 - Colour blending and motion (RFC-0007 Draft): `ResolvedColor::{to_rgb, blend}`,
   `Buffer::map_attrs`, `View::{gradient, gradient_text, tint}` with `Backdrop`,

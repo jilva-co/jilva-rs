@@ -76,10 +76,11 @@ Implementer contract: `docs/PHASE2_BACKEND_CONTRACT.md` (normative for
 Phase-2 work; backend selection/crossterm wiring belongs to the
 implementation agent).
 
-## Phase 3 — Rendering Engine (implemented on branch `phase3-rendering-engine`; RFC-0004 Draft)
+## Phase 3 — Rendering Engine (merged in PR #11; RFC-0004 Draft)
 
 Implemented in `jilva-core::renderer` per `docs/RFC/0004-rendering-engine.md`;
-not yet merged, and RFC-0004 awaits a maintainer decision.
+merged to `main` on 2026-10-17 (PR #11). RFC-0004 still awaits a maintainer
+decision; merging does not accept it.
 
 - [x] Cell buffer model: owned `Buffer`, clipped writes, wide-glyph pairing
   invariant, empty-vs-styled-blank semantics
@@ -122,8 +123,9 @@ than this phase — golden tests must not entrench a `char`-shaped API
 
 ## Phase 4 — Layout & Components (in progress)
 
-First slice implemented on branch `phase4-layout-solver` (stacked on the
-Phase-3 branch; RFC-0005 Draft, `docs/RFC/0005-layout-solver.md`):
+First slices merged to `main` on 2026-10-17 (PR #12 layout and `View`,
+PR #13 motion; RFC-0005 Draft, `docs/RFC/0005-layout-solver.md`); the app
+runtime slice is on branch `phase4-app-runtime`:
 
 - [x] Flex row/column solver: closed constraint vocabulary (`Length`,
   `Percentage`, `Min`, `Max`, `Fill`), gap, alignment, named remainder rule
@@ -137,10 +139,13 @@ Phase-3 branch; RFC-0005 Draft, `docs/RFC/0005-layout-solver.md`):
   `Lerp`, `Transition` (injected time, retarget, reduced motion) — the first
   features of the beauty-first direction in `docs/adr/0004-product-direction.md`
 - [ ] Grid tracks, measure/arrange protocol (intrinsic sizing), text wrapping
-- [ ] App runtime and component contract (RFC-2 reflected in code),
-  invalidation wiring — planned in RFC-0008 Draft
-  (`docs/RFC/0008-app-runtime.md`): slice A counter app, slice B two
-  focusable counter components
+- [x] App runtime slice A (RFC-0008 Draft, `docs/RFC/0008-app-runtime.md`):
+  `Model`, `Event<M>`, `Outcome`/`Change`, `Effects`, `Context`, the sans-IO
+  `App` runtime behind `Driven`, and the `run`/`run_with` driver in
+  `jilva-terminal`; `counter` example; headless end-to-end tests. Real-terminal
+  run of the example is a manual check, not CI.
+- [ ] Component contract slice B (RFC-0008 §5): `Component` trait, slots and
+  identity, single focus path, dispatch; two-counter example
 - [ ] Agent-chat dogfood app (transcript, streaming text, prompt input,
   tool-call card, approval prompt), offline and scripted, driving the
   remaining widgets (ADR-0004, amended 2026-10-17; replaces the dashboard)

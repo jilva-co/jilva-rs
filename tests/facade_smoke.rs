@@ -38,14 +38,12 @@ fn facade_lifecycle_rejects_illegal_transitions() {
 
 #[test]
 fn facade_events_classify_layout_impact() {
-    assert!(
-        Event::Resized {
-            cols: 100,
-            rows: 30
-        }
-        .affects_layout()
-    );
-    assert!(!Event::Tick.affects_layout());
+    let resize: Event = Event::Resize {
+        cols: 100,
+        rows: 30,
+    };
+    assert!(resize.affects_layout());
+    assert!(!Event::Message(()).affects_layout());
 }
 
 #[test]

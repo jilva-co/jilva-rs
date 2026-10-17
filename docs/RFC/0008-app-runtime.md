@@ -1,8 +1,9 @@
 # RFC-0008: App Runtime and the First Component Slice
 
-- Status: **Draft — not implemented; awaiting a maintainer decision**
-  (`docs/RFC/README.md`). Nothing here is Accepted until the maintainer records
-  it in `docs/reviews/RFC_DECISION_TRACKER.md`.
+- Status: **Draft — slice A implemented on branch `phase4-app-runtime`;
+  slice B not started; awaiting a maintainer decision** (`docs/RFC/README.md`).
+  Nothing here is Accepted until the maintainer records it in
+  `docs/reviews/RFC_DECISION_TRACKER.md`.
 - Author(s): Claude, for @hamroqulovv
 - Created: 2026-10-17
 - Related: `docs/RFC/0002-component-model.md` (accepted contracts this RFC
