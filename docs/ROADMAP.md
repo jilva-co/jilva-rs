@@ -132,9 +132,15 @@ Phase-3 branch; RFC-0005 Draft, `docs/RFC/0005-layout-solver.md`):
 - [x] Owned `View` description + paint pass + `Renderer::render` (RFC-0006
   Draft, `docs/RFC/0006-view-description.md`): text/spans, row/column,
   overlay, padding, borders; infallible clipped paint
+- [x] Colour blending and motion (RFC-0007 Draft): `ResolvedColor::blend`,
+  `Buffer::map_attrs`, `View::{gradient, gradient_text, tint}`, `Easing`,
+  `Lerp`, `Transition` (injected time, retarget, reduced motion) — the first
+  features of the beauty-first direction in `docs/adr/0004-product-direction.md`
 - [ ] Grid tracks, measure/arrange protocol (intrinsic sizing), text wrapping
 - [ ] Component contract (RFC-2 reflected in code), invalidation wiring
-- [ ] Maintainer decisions on RFC-0005 and RFC-0006
+- [ ] Dashboard dogfood app (table, chart, tabs, status bar) driving the
+  remaining widgets (ADR-0004)
+- [ ] Maintainer decisions on RFC-0005, RFC-0006 and RFC-0007
 
 Original scope, for reference:
 

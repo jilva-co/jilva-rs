@@ -20,9 +20,10 @@
 //! This is the *static* half of the component model. Identity, state slots,
 //! events and the `Component` trait build on top of it and are not here.
 
-use crate::layout::{Align, Constraint, Layout, Rect};
-use crate::output::ResolvedAttributes;
-use crate::renderer::{Buffer, text_width};
+use crate::layout::{Align, Constraint, Direction, Layout, Rect};
+use crate::motion::Lerp;
+use crate::output::{ResolvedAttributes, ResolvedColor};
+use crate::renderer::{Buffer, graphemes, text_width};
 
 /// A run of text drawn with one set of resolved attributes.
 ///
@@ -69,6 +70,55 @@ impl Span {
     }
 }
 
+/// Assumed terminal default colours, used when an effect must blend with a
+/// cell whose colour is "whatever the terminal default is" (unknowable from
+/// inside the process). Pass the real theme's colours when you have them.
+///
+/// # Example
+///
+/// ```rust
+/// use jilva_core::Backdrop;
+///
+/// let dark = Backdrop::dark();
+/// assert!(dark.bg.0 < dark.fg.0);
+/// let custom = Backdrop::new((255, 255, 255), (0, 0, 40));
+/// assert_eq!(custom.bg, (0, 0, 40));
+/// ```
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct Backdrop {
+    /// Assumed foreground (text) colour of the terminal default.
+    pub fg: (u8, u8, u8),
+    /// Assumed background colour of the terminal default.
+    pub bg: (u8, u8, u8),
+}
+
+impl Backdrop {
+    /// Creates a backdrop from explicit foreground and background colours.
+    #[must_use]
+    pub const fn new(fg: (u8, u8, u8), bg: (u8, u8, u8)) -> Self {
+        Self { fg, bg }
+    }
+
+    /// A typical dark terminal: light grey on near-black.
+    #[must_use]
+    pub const fn dark() -> Self {
+        Self::new((204, 204, 204), (24, 24, 24))
+    }
+
+    /// A typical light terminal: near-black on off-white.
+    #[must_use]
+    pub const fn light() -> Self {
+        Self::new((36, 36, 36), (248, 248, 248))
+    }
+}
+
+impl Default for Backdrop {
+    /// Returns [`Backdrop::dark`].
+    fn default() -> Self {
+        Self::dark()
+    }
+}
+
 /// The glyph set of a [`View::bordered`] frame.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 #[non_exhaustive]
@@ -100,6 +150,16 @@ impl BorderStyle {
 enum Node {
     Empty,
     Fill(ResolvedAttributes),
+    Gradient {
+        from: (u8, u8, u8),
+        to: (u8, u8, u8),
+        direction: Direction,
+    },
+    Tint {
+        color: (u8, u8, u8),
+        alpha: u8,
+        backdrop: Backdrop,
+    },
     Text {
         lines: Vec<Vec<Span>>,
         align: Align,
@@ -161,6 +221,106 @@ impl View {
     #[must_use]
     pub const fn fill(attrs: ResolvedAttributes) -> Self {
         Self(Node::Fill(attrs))
+    }
+
+    /// A background that blends smoothly from `from` to `to` across the region:
+    /// left to right for [`Direction::Row`], top to bottom for
+    /// [`Direction::Column`]. Truecolor values; the renderer downgrades them
+    /// to 256 or 16 colours automatically on weaker terminals.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use jilva_core::{Buffer, Direction, Rect, ResolvedColor, View};
+    ///
+    /// let mut buffer = Buffer::new(3, 1);
+    /// View::gradient((0, 0, 0), (200, 100, 50), Direction::Row)
+    ///     .paint(Rect::new(0, 0, 3, 1), &mut buffer);
+    /// assert_eq!(buffer.get(0, 0).unwrap().attrs().bg, ResolvedColor::Rgb(0, 0, 0));
+    /// assert_eq!(buffer.get(1, 0).unwrap().attrs().bg, ResolvedColor::Rgb(100, 50, 25));
+    /// assert_eq!(buffer.get(2, 0).unwrap().attrs().bg, ResolvedColor::Rgb(200, 100, 50));
+    /// ```
+    #[must_use]
+    pub const fn gradient(from: (u8, u8, u8), to: (u8, u8, u8), direction: Direction) -> Self {
+        Self(Node::Gradient {
+            from,
+            to,
+            direction,
+        })
+    }
+
+    /// Blends `color` over everything already painted in the region, with
+    /// 8-bit `alpha` (`0` changes nothing, `255` replaces colours). Affects
+    /// foreground and background colours; symbols and decorations stay.
+    ///
+    /// Use inside [`View::overlay`], after the content it covers: a dim
+    /// scrim behind a dialog is `tint((0, 0, 0), 140, Backdrop::dark())`.
+    /// Cells whose colour is the terminal default blend against `backdrop`.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use jilva_core::{Backdrop, Buffer, Rect, ResolvedAttributes, ResolvedColor, View};
+    ///
+    /// let white = ResolvedAttributes::new(ResolvedColor::Rgb(255, 255, 255), ResolvedColor::Default);
+    /// let scene = View::overlay([
+    ///     View::styled_text("hi", white),
+    ///     View::tint((0, 0, 0), 128, Backdrop::dark()),
+    /// ]);
+    /// let mut buffer = Buffer::new(2, 1);
+    /// scene.paint(Rect::new(0, 0, 2, 1), &mut buffer);
+    /// assert_eq!(buffer.text_rows(), ["hi"]); // text survives, colours dim
+    /// assert_eq!(buffer.get(0, 0).unwrap().attrs().fg, ResolvedColor::Rgb(127, 127, 127));
+    /// ```
+    #[must_use]
+    pub const fn tint(color: (u8, u8, u8), alpha: u8, backdrop: Backdrop) -> Self {
+        Self(Node::Tint {
+            color,
+            alpha,
+            backdrop,
+        })
+    }
+
+    /// One line per `'\n'`, with the foreground colour blending from `from`
+    /// to `to` across each line, one grapheme at a time. Wide glyphs get one
+    /// colour; the blend is by grapheme index.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use jilva_core::{Buffer, Rect, ResolvedColor, View};
+    ///
+    /// let mut buffer = Buffer::new(3, 1);
+    /// View::gradient_text("abc", (0, 0, 0), (200, 0, 0)).paint(Rect::new(0, 0, 3, 1), &mut buffer);
+    /// assert_eq!(buffer.get(1, 0).unwrap().attrs().fg, ResolvedColor::Rgb(100, 0, 0));
+    /// ```
+    #[must_use]
+    pub fn gradient_text(text: &str, from: (u8, u8, u8), to: (u8, u8, u8)) -> Self {
+        let lines = text
+            .split('\n')
+            .map(|line| {
+                let clusters: Vec<&str> = graphemes(line).collect();
+                let last = clusters.len().saturating_sub(1).max(1) as f32;
+                clusters
+                    .iter()
+                    .enumerate()
+                    .map(|(index, cluster)| {
+                        let (r, g, b) = from.lerp(&to, index as f32 / last);
+                        Span::new(
+                            *cluster,
+                            ResolvedAttributes::new(
+                                ResolvedColor::Rgb(r, g, b),
+                                ResolvedColor::Default,
+                            ),
+                        )
+                    })
+                    .collect()
+            })
+            .collect();
+        Self(Node::Text {
+            lines,
+            align: Align::Start,
+        })
     }
 
     /// Plain text. `'\n'` starts a new line; other controls are skipped when
@@ -293,6 +453,21 @@ impl View {
         match &self.0 {
             Node::Empty => {}
             Node::Fill(attrs) => buffer.fill(area, *attrs),
+            Node::Gradient {
+                from,
+                to,
+                direction,
+            } => paint_gradient(*from, *to, *direction, area, buffer),
+            Node::Tint { alpha: 0, .. } => {}
+            Node::Tint {
+                color,
+                alpha,
+                backdrop,
+            } => buffer.map_attrs(area, |attrs| ResolvedAttributes {
+                fg: attrs.fg.blend(*color, *alpha, backdrop.fg),
+                bg: attrs.bg.blend(*color, *alpha, backdrop.bg),
+                ..*attrs
+            }),
             Node::Text { lines, align } => paint_text(lines, *align, area, buffer),
             Node::Stack { layout, children } => {
                 for (child, region) in children.iter().zip(layout.split(area)) {
@@ -315,6 +490,29 @@ impl View {
                 child.paint(area.inner(1), buffer);
             }
         }
+    }
+}
+
+fn paint_gradient(
+    from: (u8, u8, u8),
+    to: (u8, u8, u8),
+    direction: Direction,
+    area: Rect,
+    buffer: &mut Buffer,
+) {
+    let steps = match direction {
+        Direction::Row => area.width,
+        Direction::Column => area.height,
+    };
+    let last = f32::from(steps.saturating_sub(1).max(1));
+    for step in 0..steps {
+        let (r, g, b) = from.lerp(&to, f32::from(step) / last);
+        let attrs = ResolvedAttributes::new(ResolvedColor::Default, ResolvedColor::Rgb(r, g, b));
+        let slice = match direction {
+            Direction::Row => Rect::new(area.x.saturating_add(step), area.y, 1, area.height),
+            Direction::Column => Rect::new(area.x, area.y.saturating_add(step), area.width, 1),
+        };
+        buffer.fill(slice, attrs);
     }
 }
 
@@ -575,6 +773,103 @@ mod tests {
         assert_eq!(once, twice);
     }
 
+    fn bg_at(buffer: &Buffer, x: u16, y: u16) -> ResolvedColor {
+        buffer.get(x, y).unwrap().attrs().bg
+    }
+
+    #[test]
+    fn gradient_runs_from_end_to_end_in_both_directions() {
+        let mut buffer = Buffer::new(5, 3);
+        View::gradient((0, 0, 0), (200, 100, 40), Direction::Row)
+            .paint(Rect::new(0, 0, 5, 3), &mut buffer);
+        assert_eq!(bg_at(&buffer, 0, 0), ResolvedColor::Rgb(0, 0, 0));
+        assert_eq!(bg_at(&buffer, 2, 1), ResolvedColor::Rgb(100, 50, 20));
+        assert_eq!(bg_at(&buffer, 4, 2), ResolvedColor::Rgb(200, 100, 40));
+        // Every row of a horizontal gradient is identical.
+        assert_eq!(bg_at(&buffer, 3, 0), bg_at(&buffer, 3, 2));
+
+        let mut buffer = Buffer::new(2, 3);
+        View::gradient((0, 0, 0), (100, 100, 100), Direction::Column)
+            .paint(Rect::new(0, 0, 2, 3), &mut buffer);
+        assert_eq!(bg_at(&buffer, 0, 0), ResolvedColor::Rgb(0, 0, 0));
+        assert_eq!(bg_at(&buffer, 1, 1), ResolvedColor::Rgb(50, 50, 50));
+        assert_eq!(bg_at(&buffer, 0, 2), ResolvedColor::Rgb(100, 100, 100));
+        assert_eq!(bg_at(&buffer, 0, 1), bg_at(&buffer, 1, 1));
+    }
+
+    #[test]
+    fn gradient_degenerate_sizes_do_not_divide_by_zero() {
+        let mut buffer = Buffer::new(4, 4);
+        View::gradient((10, 20, 30), (200, 200, 200), Direction::Row)
+            .paint(Rect::new(1, 1, 1, 2), &mut buffer);
+        assert_eq!(bg_at(&buffer, 1, 1), ResolvedColor::Rgb(10, 20, 30));
+        View::gradient((1, 1, 1), (2, 2, 2), Direction::Column)
+            .paint(Rect::new(0, 0, 3, 0), &mut buffer);
+        View::gradient((1, 1, 1), (2, 2, 2), Direction::Column)
+            .paint(Rect::new(0, 0, 0, 3), &mut buffer);
+    }
+
+    #[test]
+    fn tint_blends_foreground_and_background_and_keeps_symbols() {
+        let attrs = ResolvedAttributes::new(
+            ResolvedColor::Rgb(200, 200, 200),
+            ResolvedColor::Rgb(0, 0, 100),
+        )
+        .with_bold();
+        let scene = View::overlay([
+            View::styled_text("ab", attrs),
+            View::tint((0, 0, 0), 128, Backdrop::dark()),
+        ]);
+        let mut buffer = Buffer::new(3, 1);
+        scene.paint(Rect::new(0, 0, 3, 1), &mut buffer);
+        assert_eq!(buffer.text_rows(), ["ab "]);
+        let cell = buffer.get(0, 0).unwrap().attrs();
+        assert_eq!(cell.fg, ResolvedColor::Rgb(100, 100, 100));
+        assert_eq!(cell.bg, ResolvedColor::Rgb(0, 0, 50));
+        assert!(cell.bold, "decorations survive a tint");
+        // An untouched cell has terminal-default colours: blends against the backdrop.
+        let blank = buffer.get(2, 0).unwrap().attrs();
+        assert_eq!(blank.bg, ResolvedColor::Rgb(12, 12, 12));
+        assert_eq!(blank.fg, ResolvedColor::Rgb(102, 102, 102));
+    }
+
+    #[test]
+    fn tint_alpha_zero_changes_nothing_visible_and_is_contained() {
+        let mut buffer = Buffer::new(6, 1);
+        buffer.set_string(0, 0, "日本語", red());
+        let before = buffer.clone();
+        View::tint((255, 255, 255), 0, Backdrop::dark()).paint(Rect::new(0, 0, 6, 1), &mut buffer);
+        assert_eq!(buffer, before, "alpha 0 is a true no-op");
+        // A tint over half a wide glyph tints the whole glyph, never half.
+        let mut buffer = Buffer::new(4, 1);
+        buffer.set_string(0, 0, "日本", plain());
+        View::tint((255, 0, 0), 255, Backdrop::dark()).paint(Rect::new(1, 0, 1, 1), &mut buffer);
+        assert_eq!(bg_at(&buffer, 0, 0), ResolvedColor::Rgb(255, 0, 0));
+        assert_eq!(bg_at(&buffer, 1, 0), ResolvedColor::Rgb(255, 0, 0));
+        assert_eq!(bg_at(&buffer, 2, 0), ResolvedColor::Default);
+    }
+
+    #[test]
+    fn gradient_text_colours_each_grapheme_and_keeps_lines() {
+        let mut buffer = Buffer::new(6, 2);
+        View::gradient_text("abc\n日本", (0, 0, 0), (200, 0, 0))
+            .paint(Rect::new(0, 0, 6, 2), &mut buffer);
+        assert_eq!(buffer.text_rows(), ["abc   ", "日本  "]);
+        let fg = |x, y| buffer.get(x, y).unwrap().attrs().fg;
+        assert_eq!(fg(0, 0), ResolvedColor::Rgb(0, 0, 0));
+        assert_eq!(fg(2, 0), ResolvedColor::Rgb(200, 0, 0));
+        // Each line runs its own gradient; a wide glyph is one step.
+        assert_eq!(fg(0, 1), ResolvedColor::Rgb(0, 0, 0));
+        assert_eq!(fg(2, 1), ResolvedColor::Rgb(200, 0, 0));
+        // A single grapheme takes the start colour (no division by zero).
+        let mut one = Buffer::new(2, 1);
+        View::gradient_text("x", (9, 9, 9), (99, 99, 99)).paint(Rect::new(0, 0, 2, 1), &mut one);
+        assert_eq!(
+            one.get(0, 0).unwrap().attrs().fg,
+            ResolvedColor::Rgb(9, 9, 9)
+        );
+    }
+
     struct Rng(u64);
 
     impl Rng {
@@ -598,7 +893,7 @@ mod tests {
         match if depth == 0 {
             rng.below(3)
         } else {
-            rng.below(8)
+            rng.below(10)
         } {
             0 => View::text(TEXTS[rng.below(6) as usize]),
             1 => View::fill(red()),
@@ -627,7 +922,20 @@ mod tests {
             6 => random_view(rng, depth - 1)
                 .bordered(BorderStyle::Rounded, red())
                 .title(TEXTS[rng.below(6) as usize]),
-            _ => View::overlay([random_view(rng, depth - 1), random_view(rng, depth - 1)]),
+            7 => View::overlay([random_view(rng, depth - 1), random_view(rng, depth - 1)]),
+            8 => View::gradient(
+                (0, 0, 0),
+                (255, 128, 64),
+                if rng.below(2) == 0 {
+                    Direction::Row
+                } else {
+                    Direction::Column
+                },
+            ),
+            _ => View::overlay([
+                random_view(rng, depth - 1),
+                View::tint((10, 20, 30), rng.below(256) as u8, Backdrop::dark()),
+            ]),
         }
     }
 

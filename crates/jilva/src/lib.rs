@@ -26,13 +26,14 @@ pub use jilva_core::events::{Event, InputEvent, KeyCode, KeyEvent, KeyEventKind,
 pub use jilva_core::events::{MouseButton, MouseEvent, MouseKind, SpecialKey};
 pub use jilva_core::layout::{Align, Constraint, Direction, Layout, Rect};
 pub use jilva_core::lifecycle::LifecycleState;
+pub use jilva_core::motion::{Easing, Lerp, Transition};
 pub use jilva_core::output::{Ansi16Color, OutputCommand, ResolvedAttributes, ResolvedColor};
 pub use jilva_core::renderer::{
     Buffer, Cell, Damage, DiffOptions, Renderer, cluster_width, diff, graphemes, redraw,
     text_width, truncate_to_width,
 };
 pub use jilva_core::style::SemanticToken;
-pub use jilva_core::view::{BorderStyle, Span, View};
+pub use jilva_core::view::{Backdrop, BorderStyle, Span, View};
 pub use jilva_core::{
     AttrSupport, BackgroundHint, ColorProfile, ColorTier, InputProfile, KeyEncoding, ScreenProfile,
     TerminalCapabilities,

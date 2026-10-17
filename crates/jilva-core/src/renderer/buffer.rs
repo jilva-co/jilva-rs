@@ -120,6 +120,30 @@ impl Buffer {
     /// A wide glyph only partly inside the rectangle takes the new attributes
     /// as a whole, so the head and continuation never disagree.
     pub fn set_attrs(&mut self, rect: Rect, attrs: ResolvedAttributes) {
+        self.map_attrs(rect, |_| attrs);
+    }
+
+    /// Replaces the attributes of every cell in `rect` (clipped to the
+    /// buffer) with `f(old attributes)` and leaves symbols alone.
+    ///
+    /// The building block for effects that depend on what is already painted:
+    /// tinting, dimming, shadows. `f` must be a pure function of its input; a
+    /// wide glyph only partly inside the rectangle is mapped as a whole, and a
+    /// pure `f` gives its head and continuation the same result, so they never
+    /// disagree.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use jilva_core::{Buffer, Rect, ResolvedAttributes};
+    ///
+    /// let mut buffer = Buffer::new(4, 1);
+    /// buffer.set_string(0, 0, "ab", ResolvedAttributes::plain());
+    /// buffer.map_attrs(Rect::new(0, 0, 2, 1), |attrs| attrs.with_bold());
+    /// assert!(buffer.get(1, 0).unwrap().attrs().bold);
+    /// assert!(!buffer.get(2, 0).unwrap().attrs().bold);
+    /// ```
+    pub fn map_attrs(&mut self, rect: Rect, f: impl Fn(&ResolvedAttributes) -> ResolvedAttributes) {
         let Some((left, top, right, bottom)) = self.clip(rect) else {
             return;
         };
@@ -134,7 +158,8 @@ impl Buffer {
                 x1 += 1;
             }
             for cell in &mut self.cells[row_start + usize::from(x0)..row_start + usize::from(x1)] {
-                cell.restyle(attrs);
+                let mapped = f(cell.attrs());
+                cell.restyle(mapped);
             }
         }
     }

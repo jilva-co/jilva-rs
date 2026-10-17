@@ -266,3 +266,45 @@ fn a_described_view_reaches_the_backend_and_only_changes_follow() {
     backend.flush().expect("flush");
     assert!(renderer.render(&screen(2), &caps).is_empty());
 }
+
+#[test]
+fn a_fade_only_costs_output_on_frames_the_terminal_can_show() {
+    use jilva::{ColorProfile, Easing, Transition, View};
+    use std::time::Duration;
+
+    let fade = Transition::new(
+        ResolvedColor::Rgb(20, 20, 20),
+        ResolvedColor::Rgb(30, 120, 220),
+        Duration::ZERO,
+        Duration::from_millis(200),
+        Easing::EaseOut,
+    );
+    let mut mono = TerminalCapabilities::conservative(1);
+    mono.color = ColorProfile::mono_no_color();
+    let tiers = [
+        ("truecolor", caps()),
+        ("ansi16", TerminalCapabilities::conservative(1)),
+        ("mono", mono),
+    ];
+
+    let mut busy_frames = Vec::new();
+    for (name, caps) in tiers {
+        let mut renderer = Renderer::new(10, 1);
+        let mut busy = 0;
+        for step in 0..=20u64 {
+            let colour = fade.value_at(Duration::from_millis(step * 10));
+            let view = View::fill(ResolvedAttributes::new(ResolvedColor::Default, colour));
+            let frame = renderer.render(&view, &caps);
+            if step > 0 && !frame.is_empty() {
+                busy += 1;
+            }
+        }
+        busy_frames.push((name, busy));
+    }
+    let count = |name: &str| busy_frames.iter().find(|(n, _)| *n == name).unwrap().1;
+    // Truecolor shows (almost) every step; 16 colours collapse most steps into
+    // the same palette entry; mono cannot show the fade at all.
+    assert!(count("truecolor") >= 15, "{busy_frames:?}");
+    assert!(count("ansi16") < count("truecolor"), "{busy_frames:?}");
+    assert_eq!(count("mono"), 0, "{busy_frames:?}");
+}

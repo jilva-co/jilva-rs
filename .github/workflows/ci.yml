@@ -69,6 +69,10 @@ jobs:
         run: cargo run -p jilva --example view_demo --all-features --locked
       - name: View demo without terminal library
         run: cargo run -p jilva --example view_demo --no-default-features --locked
+      - name: Motion demo with all features
+        run: cargo run -p jilva --example motion_demo --all-features --locked
+      - name: Motion demo without terminal library
+        run: cargo run -p jilva --example motion_demo --no-default-features --locked
       - name: Build docs with all features (deny warnings)
         run: cargo doc --workspace --all-features --no-deps --locked
         env:

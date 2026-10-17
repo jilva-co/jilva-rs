@@ -21,6 +21,7 @@ pub mod error;
 pub mod events;
 pub mod layout;
 pub mod lifecycle;
+pub mod motion;
 pub mod output;
 pub mod renderer;
 pub mod style;
@@ -38,7 +39,8 @@ pub use events::{
 };
 pub use layout::{Align, Constraint, Direction, Layout, Rect};
 pub use lifecycle::LifecycleState;
+pub use motion::{Easing, Lerp, Transition};
 pub use output::{Ansi16Color, OutputCommand, ResolvedAttributes, ResolvedColor};
 pub use renderer::{Buffer, Cell, Damage, DiffOptions, Renderer, diff, redraw};
 pub use style::SemanticToken;
-pub use view::{BorderStyle, Span, View};
+pub use view::{Backdrop, BorderStyle, Span, View};
