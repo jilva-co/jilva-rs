@@ -17,9 +17,15 @@
 //! text) instead of failing. There is no partially painted state to recover
 //! from, because failure cannot occur after description.
 //!
-//! This is the *static* half of the component model. Identity, state slots,
-//! events and the `Component` trait build on top of it and are not here.
+//! This is the *static* half of the component model. A view may contain
+//! [`View::component`] nodes; the [`App`](crate::App) runtime expands them
+//! into their own views (with their state slots) before painting. Painting a
+//! view directly draws unexpanded components as nothing.
 
+use std::collections::HashSet;
+
+use crate::component::{Component, ComponentNode, Key, Path, Segment};
+use crate::error::Result;
 use crate::layout::{Align, Constraint, Direction, Layout, Rect};
 use crate::motion::Lerp;
 use crate::output::{ResolvedAttributes, ResolvedColor};
@@ -177,6 +183,11 @@ enum Node {
         style: BorderStyle,
         attrs: ResolvedAttributes,
         title: Option<String>,
+        child: Box<View>,
+    },
+    Component(ComponentNode),
+    Keyed {
+        key: Key,
         child: Box<View>,
     },
 }
@@ -440,6 +451,104 @@ impl View {
         self
     }
 
+    /// Places a [`Component`] here. The runtime gives it a state slot keyed
+    /// by its position (or [`View::key`]), calls its `view`, and paints the
+    /// result in this region.
+    ///
+    /// Views compare components by type and configuration, so an unchanged
+    /// screen stays equal. Painting a view yourself, outside the runtime,
+    /// draws a component as nothing: it has no state there.
+    #[must_use]
+    pub fn component<C: Component>(component: C) -> Self {
+        Self(Node::Component(ComponentNode::new(component)))
+    }
+
+    /// Gives this view an explicit identity among its siblings (RFC-2 §2).
+    ///
+    /// Key the *outermost* view of each item in a dynamic list: component
+    /// state inside it then follows the key when items reorder. Siblings
+    /// should be all keyed or all unkeyed; duplicate keys among siblings get
+    /// fresh state every frame. Both misuses assert in debug builds.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use jilva_core::{Constraint, View};
+    ///
+    /// let items = ["a", "b"].map(|id| (Constraint::Length(1), View::text(id).key(id)));
+    /// let list = View::column(items);
+    /// assert_ne!(list, View::column([(Constraint::Length(1), View::text("a"))]));
+    /// ```
+    #[must_use]
+    pub fn key(self, key: impl Into<Key>) -> Self {
+        Self(Node::Keyed {
+            key: key.into(),
+            child: Box::new(self),
+        })
+    }
+
+    /// Replaces every component node with what `mount` returns for it, in
+    /// depth-first paint order, tracking each node's identity path.
+    pub(crate) fn expand(
+        self,
+        path: &mut Path,
+        mount: &mut dyn FnMut(&mut Path, ComponentNode) -> Result<Self>,
+    ) -> Result<Self> {
+        match self.0 {
+            Node::Component(node) => mount(path, node),
+            Node::Keyed { key, child } => {
+                // The key replaces the edge from the parent (or names the root).
+                let saved = path.pop();
+                path.push(match saved {
+                    Some(Segment::Stateless(index)) => Segment::Stateless(index),
+                    _ => Segment::Key(key.clone()),
+                });
+                let child = child.expand(path, mount);
+                path.pop();
+                if let Some(segment) = saved {
+                    path.push(segment);
+                }
+                Ok(Self(Node::Keyed {
+                    key,
+                    child: Box::new(child?),
+                }))
+            }
+            Node::Stack { layout, children } => Ok(Self(Node::Stack {
+                layout,
+                children: expand_children(children, path, mount)?,
+            })),
+            Node::Overlay(layers) => Ok(Self(Node::Overlay(expand_children(layers, path, mount)?))),
+            Node::Padding { margin, child } => Ok(Self(Node::Padding {
+                margin,
+                child: Box::new(expand_only_child(*child, path, mount)?),
+            })),
+            Node::Border {
+                style,
+                attrs,
+                title,
+                child,
+            } => Ok(Self(Node::Border {
+                style,
+                attrs,
+                title,
+                child: Box::new(expand_only_child(*child, path, mount)?),
+            })),
+            other @ (Node::Empty
+            | Node::Fill(_)
+            | Node::Gradient { .. }
+            | Node::Tint { .. }
+            | Node::Text { .. }) => Ok(Self(other)),
+        }
+    }
+
+    /// The key of a keyed view, if this is one.
+    fn own_key(&self) -> Option<&Key> {
+        match &self.0 {
+            Node::Keyed { key, .. } => Some(key),
+            _ => None,
+        }
+    }
+
     /// Paints this view into `area` of `buffer`.
     ///
     /// Infallible and deterministic: everything clips to `area` and to the
@@ -480,6 +589,8 @@ impl View {
                 }
             }
             Node::Padding { margin, child } => child.paint(area.inner(*margin), buffer),
+            Node::Keyed { child, .. } => child.paint(area, buffer),
+            Node::Component(_) => {}
             Node::Border {
                 style,
                 attrs,
@@ -489,6 +600,68 @@ impl View {
                 paint_border(*style, *attrs, title.as_deref(), area, buffer);
                 child.paint(area.inner(1), buffer);
             }
+        }
+    }
+}
+
+fn expand_only_child(
+    child: View,
+    path: &mut Path,
+    mount: &mut dyn FnMut(&mut Path, ComponentNode) -> Result<View>,
+) -> Result<View> {
+    path.push(Segment::Child(0));
+    let child = child.expand(path, mount);
+    path.pop();
+    child
+}
+
+/// Expands siblings, enforcing the RFC-2 §2 key rules: keyed and unkeyed
+/// siblings must not mix (positional fallback), and a duplicate key gets
+/// fresh state every frame. Both assert in debug builds.
+fn expand_children(
+    children: Vec<View>,
+    path: &mut Path,
+    mount: &mut dyn FnMut(&mut Path, ComponentNode) -> Result<View>,
+) -> Result<Vec<View>> {
+    let keyed = children
+        .iter()
+        .filter(|child| child.own_key().is_some())
+        .count();
+    let mixed = keyed != 0 && keyed != children.len();
+    debug_assert!(
+        !mixed,
+        "keyed and unkeyed views are mixed among siblings; key all of them or none          (identity falls back to positions)"
+    );
+    let mut seen = HashSet::new();
+    let mut expanded = Vec::with_capacity(children.len());
+    for (index, child) in children.into_iter().enumerate() {
+        let index = u32::try_from(index).unwrap_or(u32::MAX);
+        let duplicate = child.own_key().is_some_and(|key| !seen.insert(key.clone()));
+        debug_assert!(
+            !duplicate,
+            "duplicate key {:?} among siblings; the extra views get fresh state every frame",
+            child.own_key()
+        );
+        path.push(if duplicate {
+            Segment::Stateless(index)
+        } else {
+            Segment::Child(index)
+        });
+        // Mixed siblings ignore their keys: positions decide identity.
+        let child = if mixed { child.unkeyed() } else { child };
+        let result = child.expand(path, mount);
+        path.pop();
+        expanded.push(result?);
+    }
+    Ok(expanded)
+}
+
+impl View {
+    /// Drops an outer key, keeping what it wrapped.
+    fn unkeyed(self) -> Self {
+        match self.0 {
+            Node::Keyed { child, .. } => *child,
+            other => Self(other),
         }
     }
 }
@@ -587,6 +760,53 @@ fn paint_border(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[derive(Debug, Clone, PartialEq)]
+    struct Badge(&'static str);
+
+    impl Component for Badge {
+        type State = ();
+        type Message = ();
+
+        fn init(&self) -> Result<()> {
+            Ok(())
+        }
+
+        fn update(
+            &self,
+            _state: &mut (),
+            _event: crate::Event,
+            _effects: &mut crate::Effects,
+        ) -> Result<crate::Outcome> {
+            Ok(crate::Outcome::Ignored)
+        }
+
+        fn view(&self, _state: &(), _cx: &crate::Context) -> Result<View> {
+            Ok(View::text(self.0))
+        }
+    }
+
+    #[test]
+    fn component_views_compare_by_configuration_and_key() {
+        assert_eq!(View::component(Badge("a")), View::component(Badge("a")));
+        assert_ne!(View::component(Badge("a")), View::component(Badge("b")));
+        assert_ne!(
+            View::component(Badge("a")).key(1u64),
+            View::component(Badge("a"))
+        );
+        assert_eq!(View::text("x").key("k"), View::text("x").key("k"));
+    }
+
+    #[test]
+    fn unexpanded_components_paint_nothing_and_keys_paint_their_child() {
+        let mut buffer = Buffer::new(3, 1);
+        View::row([
+            (Constraint::Length(1), View::component(Badge("a"))),
+            (Constraint::Length(2), View::text("ok").key("k")),
+        ])
+        .paint(Rect::new(0, 0, 3, 1), &mut buffer);
+        assert_eq!(buffer.text_rows(), [" ok"]);
+    }
     use crate::output::ResolvedColor;
 
     fn plain() -> ResolvedAttributes {

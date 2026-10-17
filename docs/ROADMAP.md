@@ -144,8 +144,12 @@ runtime slice is on branch `phase4-app-runtime`:
   `App` runtime behind `Driven`, and the `run`/`run_with` driver in
   `jilva-terminal`; `counter` example; headless end-to-end tests. Real-terminal
   run of the example is a manual check, not CI.
-- [ ] Component contract slice B (RFC-0008 §5): `Component` trait, slots and
-  identity, single focus path, dispatch; two-counter example
+- [x] Component contract slice B (RFC-0008 §5, on branch
+  `phase4-components`): `Component` trait, generational slots, path and key
+  identity with the RFC-2 misuse rules, single focus path with Tab
+  traversal, focused → ancestors → model dispatch; `counters` example.
+  Gaps recorded in RFC-0008 §5 (per-frame config boxing, closed key set, no
+  `FocusGained`/`FocusLost` yet).
 - [ ] Agent-chat dogfood app (transcript, streaming text, prompt input,
   tool-call card, approval prompt), offline and scripted, driving the
   remaining widgets (ADR-0004, amended 2026-10-17; replaces the dashboard)

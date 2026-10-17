@@ -1,7 +1,7 @@
 # RFC-0008: App Runtime and the First Component Slice
 
-- Status: **Draft — slice A implemented on branch `phase4-app-runtime`;
-  slice B not started; awaiting a maintainer decision** (`docs/RFC/README.md`).
+- Status: **Draft — slice A merged (PR #14); slice B implemented on branch
+  `phase4-components`; awaiting a maintainer decision** (`docs/RFC/README.md`).
   Nothing here is Accepted until the maintainer records it in
   `docs/reviews/RFC_DECISION_TRACKER.md`.
 - Author(s): Claude, for @hamroqulovv
@@ -183,24 +183,77 @@ ends in a quit key.
 
 ### 5. Slice B — components
 
-Implements RFC-2 §§2–8 for the smallest useful case:
+Implements RFC-2 §§2–8 for the smallest useful case. Decisions below marked
+*(owner)* were made by the project owner in conversation on 2026-10-17.
 
-- `Component` trait with RFC-2 §7's four required methods — `init`, `update`,
-  `view`, `cleanup` — plus defaulted `focusable() -> bool`. `update` has the
-  same `(state, Event<Message>, Effects) -> Result<Outcome>` shape as `Model`,
-  so there is one mental model.
-- Mounting: `View::component(c)` with optional `.key(k)`; identity by
-  positional path plus explicit keys, stored in a hand-rolled generational
-  slot table (RFC-2 F2.3). Misuse behaviour per the RFC-2 §2 table.
-- Focus: one focus path. `Tab`/`BackTab` that every handler ignored move focus
-  through focusable components in paint order (calm default, overridable).
-- Dispatch: key → focused component → ancestors → `Model` → runtime defaults.
-- `Context::is_focused()` so a component can draw its own focus ring.
-- Demo: two counters side by side; each keeps its own count across focus
-  changes and resizes, proving identity and slot ownership.
+- **`Component` trait** (`jilva-core::component`):
+  `trait Component: Clone + PartialEq + 'static` with `type State`,
+  `type Message`, and required `init`, `update`, `view`. `update` has the
+  same `(state, Event<Message>, Effects) -> Result<Outcome>` shape as
+  `Model`, so there is one mental model. Defaulted: `cleanup` (drops the
+  state) and `focusable() -> bool` (false). *(owner: `cleanup` is defaulted —
+  this amends RFC-2 §7's "four required methods" to three; see
+  "Amendment to RFC-2" below.)*
+- **Placement** *(owner, open question 2)*: `View::component(c)`. `Self` is
+  the component's configuration; `Clone + PartialEq` keep `View:
+  Clone + PartialEq + Eq`, so views compare components by type and
+  configuration and the debug under-report check stays exact. Painting a
+  view outside the runtime draws a component as nothing.
+- **Identity:** a path of segments from the root view — child index per
+  container edge, `Inside` at a component's own view root. `View::key(k)`
+  wraps *any* view; the key replaces that view's edge from its parent, so key
+  the outermost view of each sibling. `Key` converts from `u64`, `u32`,
+  `usize`, `&str` and `String`. Misuse per the RFC-2 §2 table: mixed keyed /
+  unkeyed siblings fall back to positions; a duplicate key gets fresh state
+  every frame (init, view, cleanup, never focusable). Both `debug_assert!`;
+  release builds never panic. A type change at the same identity drops the
+  old slot (with `cleanup`) and initialises a new one.
+- **Slots:** a hand-rolled generational table (RFC-2 F2.3); a stale handle
+  resolves to nothing. Expansion is all-or-nothing: if any `init` or `view`
+  fails, slots created for that frame are cleaned up, nothing is dropped,
+  and the identity map stays as it was (pipeline rule 2). Dropping the `App`
+  cleans up every mounted slot.
+- **Dispatch:** keys and paste go to the focused component, then each
+  ancestor component (leaf first), then the `Model`; the first `Consumed`
+  stops them. Resize goes to the model and then every component, parents
+  first, and always repaints. Mouse and terminal-focus events go to the model
+  only until hit-testing exists. Follow-ups of the model and of every
+  component share one 1024 budget per source event.
+- **Focus** *(owner, open question 4)*: one focus path. When nothing consumed
+  it, Tab moves focus forward and Shift+Tab / BackTab back, through focusable
+  components in paint order, wrapping; a focus move repaints. If the focused
+  component unmounts, or nothing is focused, focus settles on the first
+  focusable component (the frame is described once more so `is_focused` is
+  right). `Context::is_focused()` lets a component draw its own focus ring.
+- **Debug checks:** besides the model check, a component that reports no
+  change must describe the same view after its update as before.
+- **Demo:** `examples/counters.rs` — two counters; each keeps its own count
+  across focus changes and resizes, and the model stores no counts.
 
-Out of slice B (next slices): `Effects::emit` to parents, keyed dynamic
-lists in practice, ticks and subscriptions, mouse hit-testing.
+Known gaps against RFC-2, recorded rather than hidden:
+
+- RFC-2 F2.2 targets "never per-frame boxing in steady state". Component
+  configurations are boxed each time a view is described, like the rest of the
+  owned `View`; state is boxed once at mount. The homogeneous fast path is
+  later work.
+- Keys are a closed set of conversions, not any `Clone + Eq + Hash` type.
+- `FocusGained` / `FocusLost` events are not delivered yet; components read
+  `is_focused` in `view`.
+
+Out of slice B (next slices): `Effects::emit` to parents and
+`Effects::focus(id)`, ticks and subscriptions, mouse hit-testing, focus
+scopes.
+
+### Amendment to RFC-2 (proposed with this RFC)
+
+RFC-2 §7 fixes four required methods (`init`, `update`, `view`, `cleanup`).
+This RFC makes `cleanup` a defaulted method that drops the state, leaving
+three required methods. Rationale: most components own nothing that needs
+explicit release, and an always-empty required method is boilerplate every
+third-party widget writes forever — the very cost §7 uses to justify keeping
+the count small. `cleanup` still runs exactly once per mounted slot, and
+widgets that own resources override it. The project owner chose this on
+2026-10-17; it becomes normative only when this RFC is accepted.
 
 ## Implementation plan
 
@@ -272,14 +325,14 @@ each has its own later slice or RFC (ADR-0004 order of work).
    clarified ("terminal may pump a core-defined `Driven` object; it owns no
    dispatch, update or render logic"). This settles only this question; the
    RFC as a whole remains Draft.
-2. **Component nodes inside `View`.** `View` derives `Clone + PartialEq + Eq`;
-   an erased component does not. Options for slice B: a separate `Element`
-   tree that lowers to `View`, or `View::component` holding `Rc<dyn …>` with
-   identity equality. Decide before slice B.
-3. RFC-2 §7 makes `cleanup` required. Most components will leave it empty;
-   should it become a defaulted method (RFC-2 amendment)?
-4. Confirm the calm defaults: drop key releases, Ctrl+C quits when ignored,
-   Tab/BackTab move focus when ignored.
+2. **Component nodes inside `View` — decided by the owner on 2026-10-17:**
+   `View::component(c)` with `Component: Clone + PartialEq + 'static`
+   (rejected: a separate `Element` tree; `Rc` identity equality).
+3. **`cleanup` — decided by the owner on 2026-10-17:** defaulted; see
+   "Amendment to RFC-2".
+4. **Calm defaults — decided by the owner on 2026-10-17:** Tab / Shift+Tab
+   move focus when nothing consumed them. Dropping key releases and Ctrl+C
+   quitting when ignored shipped in slice A.
 5. The 1024 follow-up cap: keep as a constant, or make it an `App` option?
 6. Name of `Driven` (`Program`, `Session` are alternatives).
 

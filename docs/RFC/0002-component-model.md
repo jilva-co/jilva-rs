@@ -775,3 +775,8 @@ Unresolved (genuine disagreements / implementer-detail, for Discussion):
   cell-type dependency (renderer RFC ≤ Phase 3). No normative content
   changes at acceptance beyond the F2 sketch fix. Post-acceptance changes
   require an amendment RFC.
+- 2026-10-17 (proposed amendment, not yet in force): RFC-0008 (Draft) §5
+  "Amendment to RFC-2" makes `cleanup` a defaulted method (three required
+  methods instead of four). The project owner chose this in conversation;
+  the implementation on branch `phase4-components` follows it. It becomes
+  normative here only when RFC-0008 is accepted.

@@ -7,7 +7,9 @@
 //! path belong to the driver in `jilva-terminal`; nothing here performs I/O.
 
 mod app;
+mod tree;
 
+pub(crate) use app::FollowUps;
 pub use app::{App, Context, Driven, Effects, Model};
 
 /// Lifecycle state of an application run.

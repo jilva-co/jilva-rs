@@ -6,9 +6,10 @@
 //! and a pure [`diff`] that turns two buffers into an instruction stream.
 //! A first Phase 4 slice adds a one-dimensional flex [`Layout`] solver and an
 //! owned [`View`] description with a paint pass. The runtime slice
-//! (RFC-0008 Draft) adds the [`Model`] trait and the sans-IO [`App`] runtime
-//! that a terminal driver pumps through [`Driven`]. There is no component
-//! tree, grid layout, theme implementation, or widget system here yet.
+//! (RFC-0008 Draft) adds the [`Model`] trait, the sans-IO [`App`] runtime
+//! that a terminal driver pumps through [`Driven`], and [`Component`]s with
+//! framework-owned state slots, identity and focus. There is no grid layout,
+//! theme implementation, or widget library here yet.
 //!
 //! Platform-agnostic: this crate performs no terminal I/O and names no
 //! backend. See `docs/ARCHITECTURE.md` §3 and §6 for the boundary contract.
@@ -32,7 +33,7 @@ pub use capabilities::{
     AttrSupport, BackgroundHint, ColorProfile, ColorTier, InputProfile, KeyEncoding, ScreenProfile,
     TerminalCapabilities, background_from_colorfgbg, color_tier_from_env, no_color_active,
 };
-pub use component::ComponentId;
+pub use component::{Component, ComponentId, Key};
 pub use error::{Error, Result};
 pub use events::{
     Change, Event, InputEvent, KeyCode, KeyEvent, KeyEventKind, KeyModifiers, MouseButton,
