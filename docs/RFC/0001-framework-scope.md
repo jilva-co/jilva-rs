@@ -1,16 +1,17 @@
 # RFC-0001: Framework Scope, Principles, Non-Goals
 
-- Status: Draft
+- Status: Accepted (prior record 2026-10-16; continuation revalidated 2026-10-17 — see decision tracker)
 - Author(s): Subagent 1 — Product Scope & Framework Strategy Architect (Jilva Phase 1.5 RFC sprint)
 - Created: 2026-10-16
 - Revised: 2026-10-16 (Round 2 cross-review against RFC-2, RFC-3, ARCHITECTURE_FEASIBILITY.md — status stays Draft)
+- Discussion: #4 — https://github.com/jilva-co/jilva-rs/discussions/4 (Ideas, opened 2026-10-16T16:17:19Z, 0 comments at acceptance; historical fact, no external approval claimed)
 - Related: docs/ARCHITECTURE.md, docs/API_DESIGN.md, docs/adr/0001-rust-first.md, docs/adr/0002-workspace-structure.md, docs/adr/0003-terminal-backend-strategy.md, docs/ROADMAP.md (Phase 1 → Phase 7)
 
-> Lifecycle note: this RFC is **Draft**. Per `docs/RFC/README.md` it must pass
-> through **Discussion (minimum 1 week)** before any decision of
-> Accepted / Rejected / Postponed. Nothing in this document is accepted
-> until a maintainer merges it as such. Amendments after acceptance are new
-> short RFCs.
+> Lifecycle: accepted under the maintainer-driven process in
+> `docs/RFC/README.md`; current authorization and technical verification are
+> dated 2026-10-17 in `docs/reviews/RFC_DECISION_TRACKER.md`. Earlier Draft and
+> Discussion statements in the review/history sections describe prior stages.
+> Amendments after acceptance remain explicit, dated decisions.
 
 ## Summary
 
@@ -65,9 +66,9 @@ Ratatui's core historically positioned itself — see Prior art) leaves the
 loop, state ownership, and restoration to the user. Jilva owns the loop;
 that ownership is what makes "beautiful by default" and "restoration on
 every exit path" enforceable rather than advisory. Component-contract flavour:
-RFC-2 (Draft, not accepted) proposes a hybrid — Elm/MVU loop + retained
-identity (paths/keys) + pure view; the choice stays open until RFC-2 is
-accepted, and the Round-2 cross-review record logs where RFC-2 diverges
+Accepted RFC-2 specifies a hybrid — Elm/MVU loop + retained
+identity (paths/keys) + pure view. The Round-2 cross-review record logs
+earlier discussions of where RFC-2 diverged
 from this scope (notably change-class taxonomy).
 
 **Q2 — What does the framework own vs. what do apps own?**
@@ -88,9 +89,11 @@ decides what recovery means (ARCHITECTURE.md §3.9).
 One public crate: `jilva` (facade, re-exports only, no logic).
 `jilva-core` and `jilva-terminal` are internal implementation detail: their
 paths must never appear in user code, user imports, or facade error
-messages. Internal crates keep their own error types with `From`
-conversions inward; only the facade error type is public (ARCHITECTURE.md
-§3.9, API_DESIGN.md §2/§6). The never-leak rule covers solver/engine types
+messages. The facade exposes the shared aggregate error with `From`
+conversions inward; low-level terminal operations deliberately return standard
+`std::io::Error` (2026-10-17 backend clarification; ARCHITECTURE.md §3.9,
+API_DESIGN.md §2/§6). Backend-library-specific error types remain internal.
+The never-leak rule covers solver/engine types
 as well as backend types: over-constrained layouts map solver errors into
 the facade taxonomy, never exposing a layout engine's error enum through
 `jilva::Error` (feasibility §4 error-DX requirement). Feature flags are additive and documented; the
@@ -716,3 +719,26 @@ any RFC — all three stay Draft, and contested items stay contested.
 - **Feasibility §6-Q4/Q2 low-level choices** (ladder depth, `cjk`
   feature, SSO justification) are owned by lifecycle/renderer RFCs as
   recorded in Open Q12–Q13; scope does not pre-decide them.
+
+## Amendment history
+
+- 2026-10-16 (acceptance): **Accepted** under maintainer-driven approval
+  (`docs/RFC/README.md` decision-authority amendment, project-owner
+  authorization 2026-10-16; external 7-day wait waived). Discussion #4
+  recorded as historical fact (opened 2026-10-16T16:17:19Z, 0 comments —
+  no external approval claimed or implied). Basis: `ready-pending-discussion`
+  recommendations in `docs/reviews/CROSS_RFC_ACCEPTANCE_REVIEW.md` and
+  `docs/reviews/RFC_ACCEPTANCE_CHECKLIST.md`; Discussion-readiness YES in
+  `docs/reviews/PHASE1_7_FINAL_AUDIT.md` (§0, §3); no status
+  misrepresentation found anywhere. No content changes at acceptance —
+  the Draft text (incl. the lifecycle note above, preserved as history)
+  stands as the accepted scope. Open questions triaged: Q10 heterogeneous
+  mechanism and Q11 storage backing closed by RFC-2 §8 F2.2/F2.3 acceptance
+  (shared-G acknowledgement satisfied, no scope amendment needed);
+  Q4 extensibility, Q13 ladder depth, Q3 tick source, Q12 symbol type and
+  authorities, Q1 remainder rule, Q2 min-size policy deferred to
+  implementation RFCs as still-open items (owners in
+  `docs/reviews/RFC_DECISION_TRACKER.md`); Q7 error-visibility wording
+  confirmed consistent on careful read (§3.9 rules + §4.1 internal types
+  re-exported via facade — a future `jilva-error` split is not precluded).
+  Post-acceptance changes require an amendment RFC per the Q3 rule.

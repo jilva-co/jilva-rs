@@ -1,15 +1,17 @@
 # RFC-0003: Semantic Styling, Theme Tokens, Capability Fallbacks
 
-- Status: Draft
+- Status: Accepted (prior record 2026-10-16; continuation revalidated 2026-10-17 — see decision tracker)
 - Author(s): Subagent 3 — Design System & Theming Architect (Jilva Phase 1.5 RFC sprint)
 - Created: 2026-10-16
+- Discussion: #6 — https://github.com/jilva-co/jilva-rs/discussions/6 (Ideas, opened 2026-10-16T16:18:16Z, 0 comments at acceptance; historical fact, no external approval claimed)
 - Related: `docs/ARCHITECTURE.md` (§3.8, §8.9, §8.14), `docs/API_DESIGN.md` (§7),
   `docs/adr/0003-terminal-backend-strategy.md`,
   `docs/RFC/0001-framework-scope.md` (scope parent: amendment rule, Q12c, refusals),
   `docs/RFC/0002-component-model.md` (change classes, Context threading),
   `docs/research/ARCHITECTURE_FEASIBILITY.md` (Round-1 findings F3.1–F3.5)
-- Lifecycle note: per `docs/RFC/README.md` this RFC stays **Draft** (min. 1 week
-  Discussion before any decision) and must never read as Accepted.
+- Lifecycle: accepted under `docs/RFC/README.md`; continuation revalidated
+  2026-10-17 in `docs/reviews/RFC_DECISION_TRACKER.md`. Earlier Draft/Discussion
+  wording in review/history sections describes prior stages.
 - Round-2 note (2026-10-16): revised after cross-review of RFC-1, RFC-2, and
   the feasibility report. Resolutions and residual disagreements are recorded
   in §"Round-2 cross-review record"; unresolved items stay in Open questions.
@@ -373,7 +375,7 @@ tables live in core as data (they are math, not detection). Rules:
    reports `Mono` with all decorative attributes stripped to bold-off/plain
    (the `NO_COLOR` convention suppresses colour; structural reverse-video for
    selection is retained since it is functional, documented in the theme
-   docs). Jilva policy: command-line-present `NO_COLOR` (any value including
+   docs). Jilva policy: environment-present `NO_COLOR` (any value including
    empty) disables colour; attribute stripping follows the per-attribute
    table, and reverse-video retention is the documented exception.
 
@@ -780,3 +782,26 @@ conflicts. Each item states **aligned / resolved / contested**.
   contrast matrix incl. Unknown; prior-art links; 16/256 asymmetry;
   blink refused (Q10 resolved, §7 updated); serde wording (§4). Evidence:
   `docs/research/CAPABILITY_MODEL_RESOLUTION.md`. Status stays Draft.
+- 2026-10-16 (acceptance): **Accepted** under maintainer-driven approval
+  (`docs/RFC/README.md` decision-authority amendment, project-owner
+  authorization 2026-10-16; external 7-day wait waived). Discussion #6
+  recorded as historical fact (opened 2026-10-16T16:18:16Z, 0 comments —
+  no external approval claimed or implied). Basis: `ready-pending-discussion`
+  in `docs/reviews/CROSS_RFC_ACCEPTANCE_REVIEW.md` and
+  `docs/reviews/RFC_ACCEPTANCE_CHECKLIST.md`; ACCEPT verdicts (with P1–P3
+  wording repairs verified landed — audit §1.3) and snapshot-policy
+  endorsement in `docs/reviews/RFC3_TERMINAL_READINESS.md`; Unicode HOLD
+  disposition adopted as document-and-defer + Phase-≤3 renderer/Unicode RFC
+  requirement (7 required decisions, §D.2). Positions confirmed at
+  acceptance: `ThemeKind` documentary-only for Phase 1 (Q2);
+  extension-missing-key fallback HOLDS as Text-style + debug marker (Q3,
+  reopen on widget evidence); overlay-pair snapshot scope HOLDS at
+  `Selected + Focused` exhaustive + property tests for the rest, graduation
+  by amendment (Q4 residual); high-contrast recipe-first (Q9). Still-open
+  with owners (see `docs/reviews/RFC_DECISION_TRACKER.md`): default palette
+  RGB values + taste-review process (Q1, implementation evidence); 256
+  quantization metric (Q5, snapshot evidence); scoped themes NOT proposed,
+  amendment trigger (Q6); Unicode truncation authority (Q8, layout/renderer
+  RFCs). No content changes at acceptance. Post-acceptance changes
+  (token renames/additions, third built-in, scoped themes) require an
+  amendment RFC.

@@ -1,13 +1,16 @@
 # RFC-0002: Component Model, State Ownership, Event Flow
 
-- Status: Draft
+- Status: Accepted (prior record 2026-10-16; continuation revalidated 2026-10-17 — see decision tracker)
 - Author(s): Subagent 2 (Component Model & Reactivity Architect, Jilva Phase 1.5)
 - Created: 2026-10-16
+- Discussion: #5 — https://github.com/jilva-co/jilva-rs/discussions/5 (Ideas, opened 2026-10-16T16:17:50Z, 0 comments at acceptance; historical fact, no external approval claimed)
 - Related: docs/ARCHITECTURE.md (§3.3, §3.4, §8.8, §8.9), docs/API_DESIGN.md (§4, §5),
   docs/adr/0002-workspace-structure.md; RFC-1 (scope parent — change classes,
   focus, J-list), RFC-3 (theming — style/layout invalidation); Round-2 input:
   docs/research/ARCHITECTURE_FEASIBILITY.md (findings F2.1–F2.6)
-- Amendment history: see bottom. Status remains Draft per docs/RFC/README.md.
+- Amendment history: see bottom; current authority and verification are in
+  `docs/reviews/RFC_DECISION_TRACKER.md` (2026-10-17). Earlier Draft/Discussion
+  wording in review records describes prior stages.
 
 ## Summary
 
@@ -192,10 +195,10 @@ Dispatch order — total, exactly one path per event:
    owner: component messages to the emitting component's slot, app messages to
    app `update`.
 
-Consumption rules: consuming an event stops propagation (no "peek and pass"
-except via explicit `Outcome::Observed`, which records e.g. analytics without
-claiming the event — reviewers should scrutinise whether `Observed` survives
-to implementation; it is the only non-minimal piece). `FocusGained/FocusLost`
+Consumption rules: `Outcome::Consumed` stops propagation and
+`Outcome::Ignored` continues it. `Outcome::Observed` was dropped by the
+acceptance decision; observation does not add a third consumption variant.
+`FocusGained/FocusLost`
 are delivered regardless of consumption (they describe routing, not input).
 Focus ownership is always queryable (`app.focus_path()`), and focus moves only
 through declared outcomes (`Outcome::RequestFocus(id)`), never by components
@@ -489,7 +492,7 @@ struct InputState { draft: String, cursor: usize } // slot, keyed by identity
 impl Component for Input {  // PROPOSED API — NOT YET IMPLEMENTED
     type State = InputState;
     type Message = InputMsg;
-    fn init() -> Result<Self::State> { Ok(InputState { draft: String::new(), cursor: 0 }) } // fallible per §6 lifecycle
+    fn init() -> Result<Self::State, Error> { Ok(InputState { draft: String::new(), cursor: 0 }) } // fallible per §6 lifecycle
     fn update(slot: &mut Self::State, msg: Self::Message) -> Outcome { /* … */ }
     // returns BOTH Outcome + Change per update — carrier fixed by impl RFC (see §5 joint rule)
 }
@@ -752,3 +755,23 @@ Unresolved (genuine disagreements / implementer-detail, for Discussion):
   both seam halves (erasure + owned nodes); init `-> Result<S, Error>`;
   `Effect::Task` Send-bound at bridge; OQ order/positions synced. Evidence:
   `docs/reviews/RFC2_FINAL_TECHNICAL_REVIEW.md`. Status stays Draft.
+- 2026-10-16 (acceptance): **Accepted** under maintainer-driven approval
+  (`docs/RFC/README.md` decision-authority amendment, project-owner
+  authorization 2026-10-16; external 7-day wait waived). Discussion #5
+  recorded as historical fact (opened 2026-10-16T16:17:50Z, 0 comments —
+  no external approval claimed or implied). Basis: `ready-pending-discussion`
+  in `docs/reviews/CROSS_RFC_ACCEPTANCE_REVIEW.md` and
+  `docs/reviews/RFC_ACCEPTANCE_CHECKLIST.md`; conditional-accept verdict in
+  `docs/reviews/RFC2_FINAL_TECHNICAL_REVIEW.md` with both acceptance
+  blockers verified landed (I1 loop text, I3 joint Outcome/Change carrier —
+  audit §1.2; residual F2 sketch `, Error` fixed in this entry, editorial,
+  non-normative sketch only). Contested items decided: `Outcome::Observed`
+  DROPPED (author + reviewer agree, binary consumption covers evidenced
+  cases; reopen only on widget-author evidence); keys HOLD at
+  required-by-contract/runtime-enforced (type-level enforcement needs a
+  widget-author prototype per reviewer D2). Still-open with owners (see
+  `docs/reviews/RFC_DECISION_TRACKER.md`): effect-cap value/overflow
+  semantics + describe/layout fusion (implementers/lifecycle RFC);
+  cell-type dependency (renderer RFC ≤ Phase 3). No normative content
+  changes at acceptance beyond the F2 sketch fix. Post-acceptance changes
+  require an amendment RFC.
