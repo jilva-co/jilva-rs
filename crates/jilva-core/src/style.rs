@@ -1,30 +1,15 @@
 //! Style token model (`docs/ARCHITECTURE.md` §3.8).
 //!
-//! **Phase-1 status:** only the token vocabulary and the capability-tier
-//! vocabulary exist. The theme schema, token-to-attribute resolution, the
-//! curated default theme, and per-tier snapshot tests are RFC-3 detail.
+//! **Foundation status:** only the semantic token vocabulary is implemented.
+//! The theme schema, token-to-attribute resolution, curated default theme,
+//! and per-tier snapshot tests belong to the future design-system milestone.
 //! Components reference [`SemanticToken`]s here, never raw ANSI values.
-
-/// Terminal colour capability tier driving style degradation.
-///
-/// Resolution always degrades downward: truecolor → 256-colour → 16-colour.
-/// Detection itself lives in `jilva-terminal`; this enum is the plain-data
-/// profile that detection reports and style resolution consumes.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-#[non_exhaustive]
-pub enum ColorDepth {
-    /// 24-bit truecolor.
-    TrueColor,
-    /// 256-colour palette.
-    Ansi256,
-    /// 16-colour palette.
-    Ansi16,
-}
 
 /// Semantic style token referenced by components.
 ///
 /// Names are illustrative of intent (`accent`, `muted`, …), never colours.
-/// Concrete attributes for each token at each [`ColorDepth`] are RFC-3
+/// Concrete attributes for each token at each
+/// [`ColorTier`](crate::capabilities::ColorTier) are RFC-3
 /// detail; this enum fixes *where* tokens live so that decision has a home.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]

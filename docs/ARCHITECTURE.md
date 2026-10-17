@@ -1,6 +1,7 @@
-﻿# Architecture — jilva-rs
+# Architecture — jilva-rs
 
-> **Status:** Foundation (Phase 1). This document defines system boundaries,
+> **Status:** Phase 2 terminal engine in progress (revalidated 2026-10-17).
+> This document defines system boundaries,
 > crate structure, and dependency rules that implementation agents MUST follow.
 > Anything marked *consideration* is a problem statement, not an implementation.
 > Detailed API shapes are refined through the RFC process
@@ -113,7 +114,8 @@ Each boundary lists its **responsibility**, what it **owns**, what it explicitly
 - **Does not own:** application state, component trees, styling decisions, or
   layout. The backend receives fully-resolved draw instructions and decoded
   events; it never sees components (§3.3) or app state. (Rationale: ADR-0003.)
-- **Rule:** `jilva-core` and the facade never name a concrete backend crate.
+- **Rule:** `jilva-core` never names a terminal backend or library. The facade
+  re-exports the selected terminal types without adding terminal I/O.
   Backend selection happens at the app-construction edge, by default the
   Crossterm-based backend (ADR-0003), replaceable by a test double with no
   production-code changes.
@@ -168,8 +170,11 @@ Each boundary lists its **responsibility**, what it **owns**, what it explicitly
   so the terminal is restored.
 - **Does not own:** recovery policy for user apps (retry? quit? log?) — the
   framework reports precisely and restores the terminal; the app decides.
-- **Rules:** internal crates expose their own error types; only the facade
-  error is public API. `panic!` is reserved for violated internal invariants,
+- **Rules:** the shared `Error` is the runtime aggregate re-exported by the
+  facade. The public low-level `Backend` seam intentionally returns
+  `std::io::Result`; its errors may convert to `Error::Io` above that seam.
+  Backend-library-specific errors do not leak into the facade.
+  `panic!` is reserved for violated internal invariants,
   never for recoverable runtime conditions. Exact types are implementation-RFC
   detail; these rules are not negotiable.
 
@@ -240,15 +245,22 @@ The allowed dependency graph (arrows mean "may depend on"):
 ```text
 user app  →  jilva  →  jilva-core
                   ↘→  jilva-terminal  →  (terminal library, e.g. Crossterm)
+                         (terminal ──type-only──▶ core, see rule 1)
 ```
 
 1. **No cycles, ever.** `jilva-core` depends on nothing in this workspace.
-   `jilva-terminal` depends on nothing in this workspace (it defines the seam
-   core programs against via interface, not via dependency — concrete wiring at
-   the facade/app edge). `jilva` depends on both.
+   `jilva-terminal` depends on `jilva-core` for shared capability profiles,
+   events, output commands, geometry and their pure validation/value helpers.
+   It never drives application, component, layout or rendering behavior.
+   `jilva-core` never depends on `jilva-terminal`; `jilva` depends on both.
+   This is the 2026-10-16 ownership amendment, clarified 2026-10-17 to remove
+   the contradictory original no-dependency sentence.
 2. **Core never names a backend.** No terminal library, no platform module, no
    `cfg(windows)` branching inside `jilva-core`. Capability *profiles* are plain
    data defined in core; capability *detection* lives in `jilva-terminal`.
+   Pure helpers may interpret injected values in core; reading the process
+   environment, querying a TTY and deciding available terminal modes belong
+   to terminal. Core performs no ambient probing.
 3. **Terminal never sees app state.** `jilva-terminal` operates on draw
    instructions and emits decoded events. It takes no component, state, or
    style-token types as inputs (ADR-0003).
@@ -290,6 +302,8 @@ jilva-rs/
         lifecycle.rs          # §3.2  (module names are illustrative of the
         component.rs          # §3.3   boundary, not a fixed item list —
         events.rs             # §3.4   RFC-2 may refine within the boundary)
+        capabilities.rs       # shared capability domains and pure helpers
+        output.rs             # validated typed output commands
         layout.rs             # §3.6
         renderer.rs           # §3.7
         style.rs              # §3.8
@@ -298,7 +312,8 @@ jilva-rs/
       src/
         lib.rs
         backend.rs            # the seam interface (§3.5)
-        capabilities.rs       # capability model + detection (§3.10)
+        capabilities.rs       # environment/probe detection (§3.10)
+        crossterm_backend.rs  # terminal I/O and resource state machine
         test_double.rs        # in-memory backend for tests (name negotiable)
   examples/                   # one tiny example per concept; facade-only imports
   tests/                      # workspace integration tests (golden-output, no TTY)

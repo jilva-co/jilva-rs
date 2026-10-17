@@ -2,7 +2,7 @@
 
 No dates. Phases move when the work is honestly done.
 
-## Phase 1 — Foundation (current)
+## Phase 1 — Foundation (complete 2026-10-16)
 
 Workspace scaffolding and design groundwork. No engine, renderer, or widgets.
 
@@ -14,19 +14,43 @@ Workspace scaffolding and design groundwork. No engine, renderer, or widgets.
   (`crates/jilva`, `crates/jilva-core`, `crates/jilva-terminal`,
   `examples/`, `tests/`, `benches/`; no root `src/`, no extra crates)
 - [x] RFC process published (`docs/RFC/README.md` + template)
-- [ ] RFC-1: scope and non-goals
-- [ ] RFC-2: component model
-- [ ] RFC-3: theming
+  (governance amended 2026-10-16: maintainer-driven approval, external
+  7-day wait waived by project owner — see `docs/RFC/README.md`)
+- [x] RFC-1: scope and non-goals — ACCEPTED 2026-10-16
+- [x] RFC-2: component model — ACCEPTED 2026-10-16
+- [x] RFC-3: theming — ACCEPTED 2026-10-16
+  (decisions + rationale + deferred items:
+  `docs/reviews/RFC_DECISION_TRACKER.md`)
 - [x] Contributor setup and workspace workflow docs
   (`docs/GETTING_STARTED.md`, `docs/DEVELOPMENT.md`)
 
 Exit criterion: the workspace builds cleanly, facade-only conventions hold for
-`examples/` and `tests/`, and RFC-1/2/3 are accepted.
+`examples/` and `tests/`, and RFC-1/2/3 are accepted. — MET 2026-10-16
+(acceptances recorded; workspace-verification box above remains with the
+implementation track).
 
-## Phase 2 — Terminal Engine (planned)
+## Phase 2 — Terminal Engine (started 2026-10-16, in progress 2026-10-17)
 
 The backend seam behind which all real-terminal contact lives
 (`docs/ARCHITECTURE.md` §3.5, §3.10).
+
+Current inspection: a trait, shared event/output/capability types, Crossterm
+implementation and scripted test double already exist in the working tree.
+Their presence is not an exit verification. The 2026-10-17 continuation
+revalidates governance and corrects backend semantics; implementation and
+independent audit continue. See `docs/reviews/RFC_ACCEPTANCE_CHECKLIST.md`.
+
+- [x] Current authorization, technical acceptance and stable seam decisions
+  recorded with historical evidence limitations (2026-10-17).
+- [ ] Implementation behavior verified against the corrected backend contract.
+- [ ] Required Cargo checks, tests, formatting, Clippy and strict rustdoc pass.
+- [ ] Linux, Windows and macOS CI outcomes observed and reported accurately.
+- [ ] Minimal terminal demo builds; interactive/PTY validation reported
+  separately from headless tests.
+- [ ] Independent terminal-engine audit has no unresolved blocker.
+
+Keep Phase 2 in progress until its actual verification and platform evidence
+are recorded. A configured CI matrix or an opened PR is not a successful run.
 
 - Backend capability interface plus capability model and detection
   (truecolor, unicode support level, mouse, progressive key encoding,
@@ -38,6 +62,9 @@ The backend seam behind which all real-terminal contact lives
 
 Exit criterion: golden-output and scripted-event tests run with no TTY;
 `jilva-core` names no backend and contains no platform branching.
+Implementer contract: `docs/PHASE2_BACKEND_CONTRACT.md` (normative for
+Phase-2 work; backend selection/crossterm wiring belongs to the
+implementation agent).
 
 ## Phase 3 — Rendering Engine (planned)
 

@@ -1,6 +1,7 @@
-﻿# API Design — jilva-rs
+# API Design — jilva-rs
 
-> **Status:** Foundation (Phase 1). Principles and facade contract. Normative
+> **Status:** Phase 2 terminal seam in progress (2026-10-17).
+> Principles and facade contract. Normative
 > for structure and conventions; illustrative sketches below are explicitly
 > **not final and not compiling** — exact signatures are settled by
 > RFC-1 (scope), RFC-2 (component model), and RFC-3 (theming).
@@ -109,10 +110,11 @@ RFC-2 chooses the flavour; all flavours must satisfy this contract:
 
 ## 6. Error API
 
-- One public error type at the facade root with a stable taxonomy:
+- One shared aggregate error type at the facade root with a stable taxonomy:
   backend/terminal I/O, capability/lifecycle, layout, render, and user-callback
-  errors. Internal crates keep their own error types with `From` conversions
-  inward; only the facade type is public.
+  errors. The low-level backend API intentionally exposes `std::io::Result`;
+  it does not expose backend-library-specific error types. A future runtime
+  can convert those standard errors inward through `From<std::io::Error>`.
 - Errors carry context (which operation, which component region where
   meaningful) and never leak backend-specific types through the facade.
 - `panic!` appears only on violated internal invariants, with a message aimed
@@ -143,12 +145,33 @@ RFC-2 chooses the flavour; all flavours must satisfy this contract:
 
 ## 9. Terminal backend seam in the API
 
+- Current Phase-2 public seam: `Backend::{name, enter, leave, size, poll,
+  read, submit, flush, capabilities}`, `CrosstermBackend` and
+  `TestDoubleBackend`, re-exported through `jilva`. `enter`/`leave`,
+  observations and emission use `std::io::Result`; `name` and the cached
+  capability query do not. The full normative behavior is in
+  `docs/PHASE2_BACKEND_CONTRACT.md`; frame/runtime APIs in earlier sections
+  remain proposals for later phases.
+- `poll(timeout)` reports source readiness; filtered unsupported events may
+  make the next `read()` return `None`. `read()` also returns `None` for an
+  empty queue. It preserves supported terminal events, including key kind and
+  modifiers; optional mouse, focus and paste require explicit active support.
+- `submit(&[OutputCommand])` validates and queues an entire ordered batch.
+  Text output rejects terminal control characters; strings remain
+  Unicode-capable and are never modeled as one scalar per cell. `flush()`
+  attempts pending output once and discards that batch after the attempt.
+  I/O errors are reported, but already-written terminal bytes cannot be
+  rolled back.
+- `TerminalCapabilities` and its color/input/screen domains are core-owned
+  data. Detection occurs at session entry and queries use the cached snapshot.
+  Dynamic refresh queue/frame policy is deferred to Phase 5. Resize updates
+  screen geometry and its version, not unrelated domain versions.
 - Users select a backend at app-construction time; the default requires no
   selection. Custom backends implement a small, documented interface (setup,
   teardown, read event, write instruction stream, report size/capabilities).
 - The in-memory test double is a first-class, documented API for headless
-  tests: scripted input events in, asserted instruction streams or frame
-  snapshots out. Anything in §§3–8 must be exercisable through it.
+  tests: scripted input events in, asserted typed instruction streams out.
+  Frame snapshots and the app-construction builder remain later-phase work.
 - Capability queries are explicit values users can read (to adapt content) but
   the framework applies degradation automatically; users opt *into* manual
   handling, never *have to*.
