@@ -161,20 +161,23 @@ RFC-2 chooses the flavour; all flavours must satisfy this contract:
   Unicode-capable and are never modeled as one scalar per cell. `flush()`
   attempts pending output once and discards that batch after the attempt.
   I/O errors are reported, but already-written terminal bytes cannot be
-  rolled back.
+  rolled back. Cursor and nonempty clear rectangles must fit one cached screen
+  size; flush rechecks geometry after a consumed resize.
 - `TerminalCapabilities` and its color/input/screen domains are core-owned
   data. Detection occurs at session entry and queries use the cached snapshot.
   Dynamic refresh queue/frame policy is deferred to Phase 5. Resize updates
   screen geometry and its version, not unrelated domain versions.
-- Users select a backend at app-construction time; the default requires no
-  selection. Custom backends implement a small, documented interface (setup,
+- Users construct their backend explicitly in Phase 2. The default feature
+  exposes `CrosstermBackend`; a future runtime builder is not implemented.
+  Custom backends implement a small, documented interface (setup,
   teardown, read event, write instruction stream, report size/capabilities).
 - The in-memory test double is a first-class, documented API for headless
   tests: scripted input events in, asserted typed instruction streams out.
   Frame snapshots and the app-construction builder remain later-phase work.
 - Capability queries are explicit values users can read (to adapt content) but
-  the framework applies degradation automatically; users opt *into* manual
-  handling, never *have to*.
+  Phase 2 masks unsupported attributes and enforces monochrome policy at
+  emission. Callers supply colors resolved for the snapshot's tier; semantic
+  token/theme resolution and runtime adaptation belong to later milestones.
 
 ## 10. Naming and documentation conventions
 
