@@ -428,12 +428,18 @@ fn failed_flush_discards_attempted_output_and_retry_cannot_replay_it() {
         io::ErrorKind::BrokenPipe
     );
     assert!(backend.buffered_commands().is_empty());
-    assert_eq!(backend.captured_commands(), std::slice::from_ref(&committed));
+    assert_eq!(
+        backend.captured_commands(),
+        std::slice::from_ref(&committed)
+    );
     assert_eq!(backend.flush_count(), 1);
     backend
         .flush()
         .expect("retry has no old commands to replay");
-    assert_eq!(backend.captured_commands(), std::slice::from_ref(&committed));
+    assert_eq!(
+        backend.captured_commands(),
+        std::slice::from_ref(&committed)
+    );
     backend
         .submit(std::slice::from_ref(&fresh))
         .expect("fresh frame can be submitted");

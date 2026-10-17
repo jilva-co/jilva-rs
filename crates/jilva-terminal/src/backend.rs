@@ -44,7 +44,7 @@ pub use jilva_core::{
 /// ## Session rules (contract §6)
 ///
 /// One live session per backend instance. `enter` on an entered backend is an
-/// error; `leave` on a non-entered backend is `Ok(())` (idempotent, so `Drop`
+/// error; `leave` on a fully inactive backend is `Ok(())` (idempotent, so `Drop`
 /// guards and double-teardown paths are safe). `size` / `poll` / `read` /
 /// `submit` / `flush` outside a live session fail loud. All mutating methods
 /// take `&mut self`, so there is no reentrancy by construction.
@@ -70,7 +70,9 @@ pub trait Backend {
     /// Restores the terminal, undoing everything [`Backend::enter`] did, in
     /// reverse order.
     ///
-    /// Idempotent: leaving a non-entered backend is `Ok(())`.
+    /// Idempotent when fully inactive. A failed setup or prior cleanup can
+    /// leave resource flags pending even when the session is not usable;
+    /// calling `leave` retries those resources and can still return an error.
     ///
     /// # Errors
     ///
@@ -79,7 +81,8 @@ pub trait Backend {
     /// for retry. Successful teardown discards pending input/output.
     fn leave(&mut self) -> io::Result<()>;
 
-    /// Returns the current terminal size in cells (columns, rows).
+    /// Returns cached terminal dimensions in cells (columns, rows), updated
+    /// when a resize event is consumed.
     ///
     /// A zero width or height is reported as an error, never as `(0, 0)`.
     ///
