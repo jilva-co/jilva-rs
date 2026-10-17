@@ -1,24 +1,22 @@
-//! State and event propagation taxonomy (`docs/ARCHITECTURE.md` §3.4).
+//! State and event propagation taxonomy (`docs/README.md#runtime`).
 //!
-//! **Runtime slice (RFC-0008 Draft):** [`Event`] is the dispatch taxonomy a
-//! [`Model`](crate::Model) receives; [`Change`] and [`Outcome`] are what an
-//! update reports back (consumption and invalidation, RFC-2 §5). Ticks and
-//! component focus join later slices. Flow stays unidirectional: events flow
-//! in, updates reconcile, and nothing here touches the terminal.
+//! [`Event`] is the dispatch taxonomy a [`Model`](crate::Model) receives;
+//! [`Change`] and [`Outcome`] report consumption and invalidation. Ticks and
+//! component focus join later slices. Events flow in, updates reconcile,
+//! and nothing here touches the terminal.
 //!
-//! **Phase-2 addition:** [`InputEvent`] is the backend-decoded subset of the
-//! taxonomy crossing the terminal seam (`docs/PHASE2_BACKEND_CONTRACT.md`
-//! §2): key, mouse, resize, terminal focus, and opt-in paste. It carries no
-//! application message, timer tick, or synthesised widget focus event. The
-//! future application loop promotes input into its dispatch taxonomy.
+//! [`InputEvent`] is the backend-decoded subset of the taxonomy crossing
+//! the terminal seam: key, mouse, resize, terminal focus, and opt-in paste.
+//! It carries no application message, timer tick, or widget focus event. The
+//! application loop promotes input into its dispatch taxonomy.
 
 use crate::capabilities::KeyEncoding;
 
 /// An event delivered to a [`Model`](crate::Model) for one transactional
-/// update (RFC-2 §4 taxonomy, `docs/RFC/0008-app-runtime.md` §2).
+/// update (`docs/README.md#runtime`).
 ///
-/// Exactly one update follows one event; intermediate states are never
-/// painted. `M` is the application's own message type, delivered through
+/// Updates and follow-ups finish before a frame; intermediate states are
+/// never painted. `M` is the application's own message type, delivered through
 /// [`Event::Message`]; it defaults to `()` for apps that need none. Marked
 /// `#[non_exhaustive]` so ticks and component focus can be added without
 /// breaking downstream matches before `1.0`.
@@ -121,7 +119,7 @@ impl<M> From<InputEvent> for Event<M> {
 }
 
 /// What an update changed, ordered `None < Repaint < Layout`
-/// (RFC-2 §5 change classes).
+/// (`docs/README.md#rendering-and-layout`).
 ///
 /// Over-reporting is always correct, only slower; under-reporting is a bug,
 /// which debug builds of the runtime detect. When unsure, report
@@ -147,7 +145,7 @@ pub enum Change {
 }
 
 /// The result of one update: whether the event was consumed, and what changed
-/// (the RFC-2 §5 carrier, `docs/RFC/0008-app-runtime.md` §2).
+/// (`docs/README.md#runtime`).
 ///
 /// An ignored event changed nothing; a consumed event carries its
 /// [`Change`]. Ignored key events continue to the next handler and finally

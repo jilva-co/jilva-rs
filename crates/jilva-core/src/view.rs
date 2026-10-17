@@ -1,8 +1,7 @@
 //! The owned frame description and its paint pass
-//! (`docs/RFC/0006-view-description.md`).
+//! (`docs/README.md#rendering-and-layout`).
 //!
-//! A [`View`] is what `describe` returns in the render pipeline of
-//! `docs/research/RENDERING_MODEL_RESOLUTION.md` §5: an *owned* value tree
+//! A [`View`] is what description returns in the render pipeline: an owned tree
 //! with no lifetimes, no coordinates, and no terminal. The framework — never
 //! user code — runs layout over it and paints it into a [`Buffer`]:
 //!
@@ -463,7 +462,7 @@ impl View {
         Self(Node::Component(ComponentNode::new(component)))
     }
 
-    /// Gives this view an explicit identity among its siblings (RFC-2 §2).
+    /// Gives this view an explicit identity among its siblings.
     ///
     /// Key the *outermost* view of each item in a dynamic list: component
     /// state inside it then follows the key when items reorder. Siblings
@@ -554,7 +553,7 @@ impl View {
     /// Infallible and deterministic: everything clips to `area` and to the
     /// buffer, an empty area draws nothing, and painting twice gives the same
     /// cells. Only cells inside `area` change, apart from the one-cell
-    /// repair of a wide glyph cut by the area's edge (RFC-0004 §3).
+    /// repair of a wide glyph cut by the area's edge.
     pub fn paint(&self, area: Rect, buffer: &mut Buffer) {
         if area.is_empty() {
             return;
@@ -615,7 +614,7 @@ fn expand_only_child(
     child
 }
 
-/// Expands siblings, enforcing the RFC-2 §2 key rules: keyed and unkeyed
+/// Expands siblings, enforcing the key rules: keyed and unkeyed
 /// siblings must not mix (positional fallback), and a duplicate key gets
 /// fresh state every frame. Both assert in debug builds.
 fn expand_children(

@@ -1,7 +1,6 @@
 //! The backend seam: everything touching a real terminal hides here.
 //!
-//! **Phase-2 status:** the full contract method set from
-//! `docs/PHASE2_BACKEND_CONTRACT.md` §1 — identity, session, observation,
+//! Contract (`docs/README.md#terminal`): identity, session, observation,
 //! emission, and cached capabilities. The framework drives; the backend
 //! obeys. The backend never consumes components, app state, or style tokens.
 //! Rectangles are plain terminal cell geometry for clear commands.
@@ -10,13 +9,13 @@
 //!
 //! Shared plain-data types (`InputEvent`, `OutputCommand`,
 //! `TerminalCapabilities` and sub-types) are owned by `jilva-core` and
-//! re-exported below. See `docs/PHASE2_BACKEND_CONTRACT.md` §4.1.
+//! re-exported below.
 
 use std::io;
 use std::time::Duration;
 
 // ---------------------------------------------------------------------------
-// Canonical shared types (contract section 4.1).
+// Canonical shared types.
 //
 // `jilva-core` owns every shared plain-data type; this module re-exports
 // them so backend implementors have a single import hub. Definitions live
@@ -41,7 +40,7 @@ pub use jilva_core::{
 /// Backend selection happens at the app-construction edge, so swapping in
 /// [`crate::TestDoubleBackend`] never changes production code.
 ///
-/// ## Session rules (contract §6)
+/// ## Session rules
 ///
 /// One live session per backend instance. `enter` on an entered backend is an
 /// error; `leave` on a fully inactive backend is `Ok(())` (idempotent, so `Drop`

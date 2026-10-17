@@ -1,4 +1,4 @@
-//! The cell buffer: an owned, bounds-disciplined grid of [`Cell`]s (RFC-0004 §3).
+//! The cell buffer: an owned, bounds-disciplined grid of [`Cell`]s.
 
 use super::cell::Cell;
 use super::width::{cluster_width, graphemes};

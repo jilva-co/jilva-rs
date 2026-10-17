@@ -1,4 +1,4 @@
-//! The grapheme-capable terminal cell (RFC-0004 §3).
+//! The grapheme-capable terminal cell.
 
 use super::width::{cluster_width, graphemes};
 use crate::output::ResolvedAttributes;

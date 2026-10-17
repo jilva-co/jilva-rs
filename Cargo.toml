@@ -1,5 +1,5 @@
 # Workspace manifest ONLY: members plus shared package metadata.
-# No [package], no src/ at the root, no logic. See docs/ARCHITECTURE.md §7.
+# No [package], no src/ at the root, no logic. See docs/README.md#architecture.
 
 [workspace]
 members = [

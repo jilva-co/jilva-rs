@@ -1,4 +1,4 @@
-//! Grapheme segmentation and cell-width authorities (RFC-0004 §4).
+//! Grapheme segmentation and cell-width authorities.
 //!
 //! Two external tables decide everything here, and nothing else in the
 //! workspace may second-guess them:

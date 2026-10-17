@@ -16,7 +16,7 @@ jilva-core = { version = "0.0.0", path = "../jilva-core" }
 # ADR-0003 default backend library. Minimal features: `events` is required
 # (the entire `crossterm::event` module — read/poll/mouse capture — is gated
 # behind it) and `windows` keeps the Windows console API available on the
-# §3.10 platform matrix. `bracketed-paste` enables explicitly requested
+# cross-platform backend. `bracketed-paste` enables explicitly requested
 # paste-mode lifecycle and decoded paste data. Dropped: `derive-more`, `osc52`, `serde`
 # (backends exchange plain data, never serialise), `event-stream` (async —
 # the seam is sync-only), `use-dev-tty`.

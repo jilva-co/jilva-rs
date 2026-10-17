@@ -14,7 +14,7 @@ use std::io;
 
 /// The error type reported through the `jilva` facade.
 ///
-/// Each variant names one failure domain from `docs/ARCHITECTURE.md` §3.9.
+/// Each variant names a framework failure domain.
 /// Payloads are plain data (`String` context or the underlying
 /// [`std::io::Error`]); backend-specific types never appear here.
 ///
@@ -36,7 +36,7 @@ pub enum Error {
     /// Error propagated from a user-supplied callback.
     Callback(String),
     /// One source event produced more follow-up messages than the runtime
-    /// processes in one batch (RFC-2 §1 rule 4). Reported instead of hanging.
+    /// processes in one batch. Reported instead of hanging.
     UpdateOverflow {
         /// The follow-up limit that was exceeded.
         limit: usize,

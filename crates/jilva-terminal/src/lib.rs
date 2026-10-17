@@ -1,16 +1,14 @@
-//! Terminal backend abstraction (`docs/ARCHITECTURE.md` §3.5 and §3.10).
+//! Terminal backends and driver (`docs/README.md#terminal`).
 //!
-//! **Phase-2 status:** the full backend seam ([`Backend`],
-//! `docs/PHASE2_BACKEND_CONTRACT.md` §1) with the crossterm-based
-//! `CrosstermBackend` (the default `crossterm` feature) and the in-memory
-//! [`TestDoubleBackend`] for headless tests.
+//! [`Backend`] is implemented by `CrosstermBackend` (the default
+//! `crossterm` feature) and [`TestDoubleBackend`] for headless tests.
 //!
 //! Shared vocabulary ([`InputEvent`], [`OutputCommand`],
-//! [`TerminalCapabilities`], …) is core-owned per contract §4.1 and
+//! [`TerminalCapabilities`], …) is core-owned and
 //! re-exported through [`backend`]; this crate adds detection plus the two
 //! backends, and the run [`driver`] ([`run_with`], plus `run` with the
 //! `crossterm` feature) that pumps a
-//! core-defined [`Driven`](jilva_core::Driven) runtime (RFC-0008 Draft).
+//! core-defined [`Driven`](jilva_core::Driven) runtime.
 //!
 //! The only crate in the workspace allowed to touch terminal I/O or depend
 //! on a terminal library. It depends on `jilva-core` for shared types and

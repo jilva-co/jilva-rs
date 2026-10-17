@@ -1,5 +1,5 @@
 //! The mounted component tree: state slots, identity, focus and dispatch
-//! (RFC-2 §2–§4, §8 F2.3; `docs/RFC/0008-app-runtime.md` §5).
+//! (`docs/README.md#runtime`).
 //!
 //! Slots live in a hand-rolled generational table. Each frame, expansion
 //! walks the model's [`View`], matches every component node to a slot by its
@@ -147,7 +147,7 @@ impl Tree {
     }
 
     /// Delivers `input` to the focused component, then to each ancestor
-    /// component, until one consumes it (RFC-2 §4 rule 2).
+    /// component, until one consumes it.
     pub(crate) fn dispatch_focused(
         &mut self,
         input: &InputEvent,
@@ -183,7 +183,7 @@ impl Tree {
     }
 
     /// Delivers `input` to every mounted component, parents before children
-    /// (RFC-2 §4 rule 1, used for resizes). Consumption does not stop it.
+    /// (used for resizes). Consumption does not stop it.
     pub(crate) fn broadcast(
         &mut self,
         input: &InputEvent,

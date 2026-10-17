@@ -1,58 +1,37 @@
-# Contributing to jilva-rs
+# Contributing
 
-Design stage — different rules than a normal repo.
+Start with the [project guide](docs/README.md) for implemented behaviour,
+boundaries, and the next milestone. Small documentation fixes can go straight
+to a PR. For API, lifecycle, dependency, or scope changes, include the proposal
+and evidence in the PR, then record the maintainer decision in the guide.
+Discussions are welcome; no external waiting period is required.
 
-## What helps most right now
+Use the toolchain in `rust-toolchain.toml`. Run the CI checks that apply:
 
-1. **RFC reviews** — read [`docs/RFC/`](docs/RFC/), find flaws, cite prior art, propose smaller alternatives.
-2. **Pain reports** — what hurt you in Ratatui / Cursive / Bubble Tea / Textual? Concrete stories beat feature votes.
-3. **Docs clarity** — if a sentence here confuses you, that is a bug. Open a `docs` issue.
-
-## What is not accepted yet
-
-- `src/` code, new dependencies, or API pull requests without an accepted RFC
-  (Phase 1 foundation code exists by design; anything beyond it needs an RFC).
-- Large unsolicited PRs — they will be closed with a pointer to Discussions.
-- New top-level crates beyond `crates/jilva`, `crates/jilva-core`, and
-  `crates/jilva-terminal` (reserved future names are integration points only —
-  see `docs/ARCHITECTURE.md` §4.2).
-
-## Process
-
-1. **Discuss first** — [Ideas](https://github.com/orgs/jilva-co/discussions) for anything beyond typos.
-2. **RFC for design** — follow [`docs/RFC/README.md`](docs/RFC/README.md).
-3. **Small PRs** — one change, Conventional Commits (`docs:`, `chore:`, `feat:`, `fix:`), docs updated.
-
-General org rules: [`jilva-co/.github CONTRIBUTING.md`](https://github.com/jilva-co/.github/blob/main/CONTRIBUTING.md).
-Code of Conduct applies everywhere: [`CODE_OF_CONDUCT.md`](https://github.com/jilva-co/.github/blob/main/CODE_OF_CONDUCT.md).
-
-## Workspace commands
-
-Full workflow (toolchain, checks, tests, benches, examples): see
-[`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md). The everyday commands:
-
-```bash
-git clone https://github.com/jilva-co/jilva-rs.git
-cd jilva-rs
-cargo check --workspace
-cargo test --workspace
+```sh
+cargo fmt --all -- --check
+cargo check --workspace --all-targets --locked
+cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
+cargo clippy --workspace --all-targets --no-default-features --locked -- -D warnings
+cargo test --workspace --all-targets --all-features --locked
+cargo test --workspace --all-targets --no-default-features --locked
+cargo test --workspace --doc --all-features --locked
+cargo test --workspace --doc --no-default-features --locked
+cargo doc --workspace --all-features --no-deps --locked
+cargo doc --workspace --no-default-features --no-deps --locked
 ```
 
-Per-crate while iterating:
+For rustdoc checks, set `RUSTDOCFLAGS=-D warnings` using your shell's environment
+syntax. [CI](.github/workflows/ci.yml) also checks feature combinations and
+runs headless demos on Linux, macOS, and Windows.
 
-```bash
-cargo check -p jilva
-cargo check -p jilva-core
-cargo check -p jilva-terminal
-cargo test -p jilva-core
-```
+Keep terminal I/O in `jilva-terminal`, pure behaviour in `jilva-core`, and the
+public entry point in `jilva`. Examples/tests/benches use facade imports.
+Unsafe code is forbidden; recoverable failures return errors rather than panic.
+Test changed behaviour and error paths; document public APIs beside their code.
+Public seam/error changes need two reviewers. New dependencies need a reason.
 
-Rules that hold from Phase 1 onward (enforced in review; see
-`docs/ARCHITECTURE.md` §6–§7):
-
-- `examples/` and `tests/` import only the `jilva` facade — never
-  `jilva-core` or `jilva-terminal` directly.
-- `jilva-core` must build and pass tests on a machine with no TTY.
-- `jilva` (the facade) contains re-exports and docs only — no logic.
-- Every new third-party dependency needs a stated reason in its RFC/PR.
-- Doc examples use the facade only and must be runnable against the test double.
+Use Conventional Commits and keep each PR focused. Update the existing guide
+instead of adding separate plans, RFC files, or audit reports.
+[Code of Conduct](https://github.com/jilva-co/.github/blob/main/CODE_OF_CONDUCT.md)
+applies. Report vulnerabilities through [SECURITY.md](SECURITY.md).

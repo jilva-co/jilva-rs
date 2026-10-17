@@ -1,5 +1,5 @@
 //! Integer cell geometry ([`Rect`]) and a one-dimensional flex solver
-//! ([`Layout`]) — `docs/ARCHITECTURE.md` §3.6, `docs/RFC/0005-layout-solver.md`.
+//! ([`Layout`]) — `docs/README.md#rendering-and-layout`.
 //!
 //! **Status:** row/column splitting with a closed constraint vocabulary, gap,
 //! alignment, a deterministic remainder rule, and a never-panic overflow

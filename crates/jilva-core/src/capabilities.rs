@@ -1,7 +1,7 @@
 //! Capability domain types: plain-data terminal profiles.
 //!
-//! **Phase-2 status:** this module is the single canonical definition of the
-//! capability model (`docs/PHASE2_BACKEND_CONTRACT.md` §4). `jilva-core` owns
+//! This module is the single canonical definition of the capability model
+//! (`docs/README.md#terminal`). `jilva-core` owns
 //! these types; `jilva-terminal` populates them through detection and the
 //! loop consumes one domain struct at a time (never the aggregate, except at
 //! the two seams where [`TerminalCapabilities`] travels).
@@ -13,7 +13,7 @@
 //! into [`color_tier_from_env`], [`background_from_colorfgbg`], and
 //! [`no_color_active`] with values it collected.
 //!
-//! Conservatism rule (contract §4.3): on uncertainty the baseline is
+//! Conservatism rule: on uncertainty the baseline is
 //! [`ColorTier::Ansi16`], never [`ColorTier::Mono`] and never a higher tier.
 //! [`ColorTier::Mono`] requires positive evidence — currently only the
 //! presence of `NO_COLOR`. Guessing is forbidden: every function below is
@@ -159,7 +159,7 @@ impl AttrSupport {
     /// Returns this value with decorative attributes stripped, retaining only
     /// structural reverse video.
     ///
-    /// This is the `NO_COLOR` policy helper (RFC-3 §5 Jilva policy):
+    /// This is the `NO_COLOR` policy helper:
     /// `NO_COLOR` present (any value, including empty) suppresses decoration
     /// while keeping reverse video for selection/focus structure.
     #[must_use]
@@ -179,7 +179,7 @@ impl AttrSupport {
 ///
 /// [`BackgroundHint::Unknown`] means "no auto-switch": consumers keep the
 /// application theme instead of guessing (the rejected alternative of
-/// guessing from absence of evidence is recorded in RFC-3 Alt-4).
+/// guessing from absence of evidence is deliberately avoided).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub enum BackgroundHint {
@@ -394,7 +394,7 @@ impl ScreenProfile {
 
 /// Aggregate capability snapshot travelling terminal → loop and loop → frame.
 ///
-/// Consumption rule (normative, RFC-3 P1): every consumer takes its own
+/// Consumption rule: every consumer takes its own
 /// domain struct ([`ColorProfile`] for style, [`InputProfile`] for input,
 /// [`ScreenProfile`] for renderer/lifecycle) — NEVER this aggregate — except
 /// at the two seams where the aggregate travels.
@@ -587,7 +587,7 @@ const fn const_screen_eq(a: ScreenProfile, b: ScreenProfile) -> bool {
 
 /// Reports whether `NO_COLOR` is active.
 ///
-/// Jilva's RFC-0003 policy is presence-based: the variable being present
+/// Jilva's policy is presence-based: the variable being present
 /// with any value, including the empty string, disables colour by default.
 /// This deliberately goes beyond the [informal standard](https://no-color.org/),
 /// which requires a nonempty value and addresses colour alone. Jilva also
@@ -630,7 +630,7 @@ pub const fn no_color_active(no_color: Option<&str>) -> bool {
 /// 4. Anything else — including `dumb`, empty, and unset — ⇒
 ///    [`ColorTier::Ansi16`]. A `dumb` terminal is NOT mapped to mono: the
 ///    conservative default is Ansi16 unless positive evidence says
-///    otherwise (contract §4.3).
+///    otherwise.
 ///
 /// `TERM_PROGRAM` is retained as an input for compatibility, but a program
 /// name alone is insufficient evidence of color support: nested terminals

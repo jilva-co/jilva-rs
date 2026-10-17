@@ -5,12 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 This project is pre-`1.0`: minor versions may break with migration notes,
 patch versions never break. Any breaking change while in `0.x` still requires
-an RFC amendment (see `docs/ARCHITECTURE.md` §3.1).
+a design amendment (see [design decisions](docs/README.md#design-decisions)).
 
 ## [Unreleased]
 
 ### Changed
 
+- Consolidated design, roadmap, research, audits, and experiment notes into
+  `docs/README.md`; shortened setup/community docs, corrected implementation
+  status, and added a sourced comparison and measurable development plan.
 - `App::new` is no longer `const` (the component tree needs a hash map).
 
 - Breaking (unreleased placeholder): the Phase-1 `Event { Tick, Resized,
@@ -44,10 +47,9 @@ an RFC amendment (see `docs/ARCHITECTURE.md` §3.1).
   direction, amended by the owner on 2026-10-17: AI-agent and streaming CLIs
   first, reproducibility as the second headline, an offline agent-chat demo
   instead of the dashboard.
-- RFC-0008 Draft (`docs/RFC/0008-app-runtime.md`): plan for the app runtime
-  (sans-IO `App`, `Model`, `Outcome`/`Change`, `Effects`, terminal driver) and
-  the first `Component` slice; counter and two-counter examples. Not
-  implemented.
+- RFC-0008 Draft: design for the runtime and first component slice, now
+  implemented above; design acceptance remains pending (see
+  [design decisions](docs/README.md#design-decisions)).
 - `View` (RFC-0006 Draft): an owned, geometry-free frame description with text
   and spans, row/column, overlay, padding and borders; `View::paint` and
   `Renderer::render` (describe → paint → diff); `view_demo` example.
@@ -71,12 +73,9 @@ an RFC amendment (see `docs/ARCHITECTURE.md` §3.1).
 - Maintainer-authorized RFC acceptance revalidation dated 2026-10-17, preserving
   earlier Discussion history and deferred implementation decisions.
 - Foundation documentation: system boundaries, crate structure, and dependency
-  rules (`docs/ARCHITECTURE.md`); API principles and facade contract
-  (`docs/API_DESIGN.md`).
-- Seven-phase roadmap from foundation to alpha release (`docs/ROADMAP.md`).
-- Contributor setup guide (`docs/GETTING_STARTED.md`).
-- Rewritten project README with status, philosophy, contributor commands, repo
-  structure, and architecture overview.
+  rules, API principles, facade contract, roadmap, and contributor setup
+  (now consolidated in [the project guide](docs/README.md)).
+- Project README with status, quick start, product direction, and repository map.
 - Workspace contribution rules and everyday `cargo` commands (`CONTRIBUTING.md`).
 
 ### Changed

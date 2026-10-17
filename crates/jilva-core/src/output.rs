@@ -1,7 +1,7 @@
 //! Typed output commands: the instruction vocabulary the backend executes.
 //!
-//! **Phase-2 status:** `OutputCommand` is the `loop → terminal` seam payload
-//! (`docs/PHASE2_BACKEND_CONTRACT.md` §3). Commands are plain data — the
+//! `OutputCommand` is the `loop → terminal` seam payload
+//! (`docs/README.md#terminal`). Commands are plain data — the
 //! backend executes them literally and correctly, never interpreting style.
 //! Ordering is significant: `Backend::submit` buffers FIFO and `flush`
 //! commits in order; cursor minimisation and diffing are Phase-3 renderer
@@ -20,9 +20,8 @@ use std::io;
 
 /// Instruction vocabulary the backend executes, in order.
 ///
-/// Additive-only evolution: new variants may be added (RFC-0004 lists
-/// run-length compression as an open question); existing variants never
-/// change shape. The Phase-3 renderer needed none.
+/// Additive-only evolution: new variants may be added; existing variants
+/// keep their shape.
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum OutputCommand {

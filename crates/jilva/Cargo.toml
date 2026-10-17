@@ -19,7 +19,7 @@ jilva-terminal = { version = "0.0.0", path = "../jilva-terminal", default-featur
 workspace = true
 
 # Root-level example and integration test live in the repo layout required by
-# docs/ARCHITECTURE.md §7 (examples/, tests/) but a virtual workspace root is
+# docs/README.md#architecture (examples/, tests/) but a virtual workspace root is
 # not a Cargo target, so they are wired here to the facade crate. They may
 # import the facade only — never jilva-core or jilva-terminal directly.
 [[example]]
