@@ -28,7 +28,7 @@ use crate::error::Result;
 use crate::layout::{Align, Constraint, Direction, Layout, Rect};
 use crate::motion::Lerp;
 use crate::output::{ResolvedAttributes, ResolvedColor};
-use crate::renderer::{Buffer, graphemes, text_width};
+use crate::renderer::{Buffer, cluster_width, graphemes, text_width};
 
 /// A run of text drawn with one set of resolved attributes.
 ///
@@ -168,6 +168,7 @@ enum Node {
     Text {
         lines: Vec<Vec<Span>>,
         align: Align,
+        wrap: bool,
     },
     Stack {
         layout: Layout,
@@ -175,7 +176,8 @@ enum Node {
     },
     Overlay(Vec<View>),
     Padding {
-        margin: u16,
+        horizontal: u16,
+        vertical: u16,
         child: Box<View>,
     },
     Border {
@@ -330,11 +332,12 @@ impl View {
         Self(Node::Text {
             lines,
             align: Align::Start,
+            wrap: false,
         })
     }
 
     /// Plain text. `'\n'` starts a new line; other controls are skipped when
-    /// painted. Text is clipped to its region, never wrapped.
+    /// painted. Text clips by default; opt into soft wrapping with [`View::wrap`].
     #[must_use]
     pub fn text(text: &str) -> Self {
         Self::styled_text(text, ResolvedAttributes::plain())
@@ -349,6 +352,7 @@ impl View {
                 .map(|line| vec![Span::new(line, attrs)])
                 .collect(),
             align: Align::Start,
+            wrap: false,
         })
     }
 
@@ -358,6 +362,7 @@ impl View {
         Self(Node::Text {
             lines: vec![spans.into_iter().collect()],
             align: Align::Start,
+            wrap: false,
         })
     }
 
@@ -367,6 +372,31 @@ impl View {
     pub fn text_align(mut self, align: Align) -> Self {
         if let Node::Text { align: current, .. } = &mut self.0 {
             *current = align;
+        }
+        self
+    }
+
+    /// Wraps a text view to its allocated width, preserving span attributes.
+    /// No effect on other views. Explicit newlines still start new rows.
+    ///
+    /// Prefers breaks at ASCII spaces, discarding spaces at a soft break.
+    /// Long words split only between graphemes. A double-width grapheme in
+    /// a one-column region becomes one styled blank. Control-bearing and
+    /// zero-width graphemes are skipped, as in [`View::text`]. This does not
+    /// perform language-specific line breaking or intrinsic measurement;
+    /// the parent must allocate enough rows. Excess rows clip safely.
+    ///
+    /// ```rust
+    /// use jilva_core::{Buffer, View};
+    ///
+    /// let mut buffer = Buffer::new(6, 3);
+    /// View::text("Clear by design.").wrap().paint(buffer.area(), &mut buffer);
+    /// assert_eq!(buffer.text_rows(), ["Clear ", "by    ", "design"]);
+    /// ```
+    #[must_use]
+    pub fn wrap(mut self) -> Self {
+        if let Node::Text { wrap, .. } = &mut self.0 {
+            *wrap = true;
         }
         self
     }
@@ -422,8 +452,27 @@ impl View {
     /// Insets this view by `margin` cells on every side.
     #[must_use]
     pub fn padding(self, margin: u16) -> Self {
+        self.padding_xy(margin, margin)
+    }
+
+    /// Insets by `horizontal` columns and `vertical` rows on each side.
+    ///
+    /// Terminal cells are usually taller than they are wide: two columns
+    /// and one row make a useful starting point for balanced panel spacing.
+    /// Insets clamp safely when the region is too small.
+    ///
+    /// ```rust
+    /// use jilva_core::{Buffer, View};
+    ///
+    /// let mut buffer = Buffer::new(8, 3);
+    /// View::text("hello").padding_xy(2, 1).paint(buffer.area(), &mut buffer);
+    /// assert_eq!(buffer.text_rows(), ["        ", "  hell  ", "        "]);
+    /// ```
+    #[must_use]
+    pub fn padding_xy(self, horizontal: u16, vertical: u16) -> Self {
         Self(Node::Padding {
-            margin,
+            horizontal,
+            vertical,
             child: Box::new(self),
         })
     }
@@ -517,8 +566,13 @@ impl View {
                 children: expand_children(children, path, mount)?,
             })),
             Node::Overlay(layers) => Ok(Self(Node::Overlay(expand_children(layers, path, mount)?))),
-            Node::Padding { margin, child } => Ok(Self(Node::Padding {
-                margin,
+            Node::Padding {
+                horizontal,
+                vertical,
+                child,
+            } => Ok(Self(Node::Padding {
+                horizontal,
+                vertical,
                 child: Box::new(expand_only_child(*child, path, mount)?),
             })),
             Node::Border {
@@ -576,7 +630,13 @@ impl View {
                 bg: attrs.bg.blend(*color, *alpha, backdrop.bg),
                 ..*attrs
             }),
-            Node::Text { lines, align } => paint_text(lines, *align, area, buffer),
+            Node::Text { lines, align, wrap } => {
+                if *wrap {
+                    paint_wrapped_text(lines, *align, area, buffer);
+                } else {
+                    paint_text(lines, *align, area, buffer);
+                }
+            }
             Node::Stack { layout, children } => {
                 for (child, region) in children.iter().zip(layout.split(area)) {
                     child.paint(region, buffer);
@@ -587,7 +647,13 @@ impl View {
                     layer.paint(area, buffer);
                 }
             }
-            Node::Padding { margin, child } => child.paint(area.inner(*margin), buffer),
+            Node::Padding {
+                horizontal,
+                vertical,
+                child,
+            } => {
+                child.paint(area.inner_xy(*horizontal, *vertical), buffer);
+            }
             Node::Keyed { child, .. } => child.paint(area, buffer),
             Node::Component(_) => {}
             Node::Border {
@@ -705,6 +771,92 @@ fn paint_text(lines: &[Vec<Span>], align: Align, area: Rect, buffer: &mut Buffer
         let mut x = area.x.saturating_add(offset as u16);
         for span in line {
             x = buffer.set_string_clipped(x, row as u16, span.text(), *span.attrs(), area);
+        }
+    }
+}
+
+fn paint_wrapped_text(lines: &[Vec<Span>], align: Align, area: Rect, buffer: &mut Buffer) {
+    let mut y = u32::from(area.y);
+    for line in lines {
+        if y >= area.bottom() || y > u32::from(u16::MAX) {
+            break;
+        }
+        // Borrow the existing text and styles; never rebuild styled strings.
+        let glyphs: Vec<_> = line
+            .iter()
+            .flat_map(|span| {
+                graphemes(span.text()).filter_map(|text| {
+                    let width = cluster_width(text);
+                    (width != 0).then_some((text, width, *span.attrs()))
+                })
+            })
+            .collect();
+        if glyphs.is_empty() {
+            y += 1;
+            continue;
+        }
+        let mut start = 0;
+        while start < glyphs.len() && y < area.bottom() && y <= u32::from(u16::MAX) {
+            let mut end = start;
+            let mut used = 0;
+            let mut space = None;
+            let mut has_ink = false;
+            while let Some((text, width, _)) = glyphs.get(end) {
+                if used + u32::from(*width) > u32::from(area.width) {
+                    break;
+                }
+                used += u32::from(*width);
+                if *text == " " {
+                    if has_ink {
+                        space = Some(end);
+                    }
+                } else {
+                    has_ink = true;
+                }
+                end += 1;
+            }
+            if end == start {
+                // Consume a too-wide cluster, so even a 1-column viewport
+                // makes progress without emitting half of a wide glyph.
+                buffer.fill(Rect::new(area.x, y as u16, 1, 1), glyphs[start].2);
+                start += 1;
+                y += 1;
+                continue;
+            }
+            if end < glyphs.len()
+                && glyphs[end].0 != " "
+                && let Some(at) = space.filter(|at| *at > start)
+            {
+                end = at;
+            }
+            let soft_break = end < glyphs.len();
+            let mut visible_end = end;
+            if soft_break {
+                while visible_end > start && glyphs[visible_end - 1].0 == " " {
+                    visible_end -= 1;
+                }
+            }
+            let width: u16 = glyphs[start..visible_end]
+                .iter()
+                .map(|(_, w, _)| u16::from(*w))
+                .sum();
+            let free = area.width - width;
+            let offset = match align {
+                Align::Start => 0,
+                Align::Center => free / 2,
+                Align::End => free,
+            };
+            let mut x = area.x.saturating_add(offset);
+            for (text, _, attrs) in &glyphs[start..visible_end] {
+                x = buffer.set_string_clipped(x, y as u16, text, *attrs, area);
+            }
+            start = end;
+            if soft_break {
+                while start < glyphs.len() && glyphs[start].0 == " " {
+                    start += 1;
+                }
+            }
+            y += 1;
         }
     }
 }
@@ -854,6 +1006,131 @@ mod tests {
         assert_eq!(buffer.get(1, 0).unwrap().attrs(), &red());
         assert_eq!(buffer.get(2, 0).unwrap().attrs(), &plain());
         assert_eq!(buffer.text_rows(), ["abcd  "]);
+    }
+
+    #[test]
+    fn wrapping_prefers_spaces_but_splits_long_words() {
+        assert_eq!(
+            render(&View::text("one two threefour").wrap(), 5, 4),
+            ["one  ", "two  ", "three", "four "]
+        );
+        assert_eq!(
+            render(&View::text("hello world").wrap(), 5, 2),
+            ["hello", "world"]
+        );
+        assert_eq!(
+            render(&View::text("  abcde").wrap(), 4, 2),
+            ["  ab", "cde "]
+        );
+        assert_eq!(render(&View::text("a   b").wrap(), 3, 2), ["a  ", "b  "]);
+        assert_eq!(
+            render(&View::text("abcdef"), 3, 2),
+            ["abc", "   "],
+            "wrapping stays opt-in"
+        );
+    }
+
+    #[test]
+    fn wrapping_keeps_span_styles_across_a_word_and_a_soft_break() {
+        let view = View::line([Span::new("hel", red()), Span::plain("lo wide")]).wrap();
+        let mut buffer = Buffer::new(5, 2);
+        view.paint(buffer.area(), &mut buffer);
+        assert_eq!(buffer.text_rows(), ["hello", "wide "]);
+        for x in 0..3 {
+            assert_eq!(buffer.get(x, 0).unwrap().attrs(), &red());
+        }
+        assert_eq!(buffer.get(3, 0).unwrap().attrs(), &plain());
+        assert_eq!(buffer.get(0, 1).unwrap().attrs(), &plain());
+    }
+
+    #[test]
+    fn wrapping_preserves_hard_breaks_and_filters_controls() {
+        assert_eq!(
+            render(&View::text("ab\n\ncd ef\n").wrap(), 3, 5),
+            ["ab ", "   ", "cd ", "ef ", "   "]
+        );
+        assert_eq!(
+            render(&View::text("a\tb\u{1b}c\u{85}d").wrap(), 2, 2),
+            ["ab", "cd"]
+        );
+    }
+
+    #[test]
+    fn wrapping_preserves_unicode_clusters_and_wide_cell_pairs() {
+        assert_eq!(
+            render(&View::text("e\u{301}日本👩‍💻z").wrap(), 3, 3),
+            ["e\u{301}日", "本 ", "👩‍💻z"]
+        );
+        let view = View::styled_text("日a👩‍💻b", red()).wrap();
+        let mut buffer = Buffer::new(1, 4);
+        view.paint(buffer.area(), &mut buffer);
+        assert_eq!(buffer.text_rows(), [" ", "a", " ", "b"]);
+        assert!(
+            buffer
+                .row(0)
+                .unwrap()
+                .iter()
+                .all(|cell| cell.attrs() == &red())
+        );
+        assert!(!buffer.get(0, 2).unwrap().is_continuation());
+    }
+
+    #[test]
+    fn wrapping_aligns_each_soft_line_and_clips_to_the_allocated_area() {
+        assert_eq!(
+            render(&View::text("a bbbb c").wrap().text_align(Align::End), 4, 3),
+            ["   a", "bbbb", "   c"]
+        );
+        assert_eq!(
+            render(
+                &View::text("a bbbb c").wrap().text_align(Align::Center),
+                4,
+                3
+            ),
+            [" a  ", "bbbb", " c  "]
+        );
+        let mut buffer = Buffer::new(8, 4);
+        buffer.fill(buffer.area(), red());
+        View::text("a bbbb c")
+            .wrap()
+            .paint(Rect::new(2, 1, 4, 2), &mut buffer);
+        assert_eq!(
+            buffer.text_rows(),
+            ["        ", "  a     ", "  bbbb  ", "        "]
+        );
+        assert_eq!(buffer.get(1, 1).unwrap().attrs(), &red());
+        assert_eq!(buffer.get(6, 2).unwrap().attrs(), &red());
+        assert_eq!(View::empty().wrap(), View::empty());
+    }
+
+    #[test]
+    fn wrapping_and_axis_padding_handle_empty_and_extreme_regions() {
+        let mut buffer = Buffer::new(u16::MAX, 1);
+        let long = "x".repeat(usize::from(u16::MAX) + 1);
+        View::text(&long).wrap().paint(buffer.area(), &mut buffer);
+        assert_eq!(buffer.get(u16::MAX - 1, 0).unwrap().symbol(), "x");
+        for area in [Rect::new(u16::MAX, u16::MAX, 9, 9), Rect::new(0, 0, 0, 1)] {
+            View::text("日a")
+                .wrap()
+                .padding_xy(u16::MAX, 0)
+                .paint(area, &mut buffer);
+        }
+        assert_eq!(
+            Rect::new(u16::MAX, u16::MAX, 9, 9).inner_xy(2, 1),
+            Rect::new(u16::MAX, u16::MAX, 5, 7)
+        );
+        assert_eq!(
+            render(&View::text("abc").padding_xy(2, 0), 7, 2),
+            ["  abc  ", "       "]
+        );
+        assert_eq!(
+            render(&View::text("abc").padding_xy(0, 1), 3, 3),
+            ["   ", "abc", "   "]
+        );
+        assert_eq!(
+            render(&View::text("abc").padding_xy(u16::MAX, 0), 3, 3),
+            ["   ", "   ", "   "]
+        );
     }
 
     #[test]
@@ -1114,7 +1391,10 @@ mod tests {
         } else {
             rng.below(10)
         } {
-            0 => View::text(TEXTS[rng.below(6) as usize]),
+            0 => {
+                let text = View::text(TEXTS[rng.below(6) as usize]);
+                if rng.below(2) == 0 { text.wrap() } else { text }
+            }
             1 => View::fill(red()),
             2 => View::empty(),
             3 | 4 => {
@@ -1137,7 +1417,7 @@ mod tests {
                 }
                 .gap(rng.below(3) as u16)
             }
-            5 => random_view(rng, depth - 1).padding(rng.below(3) as u16),
+            5 => random_view(rng, depth - 1).padding_xy(rng.below(3) as u16, rng.below(3) as u16),
             6 => random_view(rng, depth - 1)
                 .bordered(BorderStyle::Rounded, red())
                 .title(TEXTS[rng.below(6) as usize]),

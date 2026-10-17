@@ -16,7 +16,9 @@ use crate::layout::Rect;
 use crate::lifecycle::LifecycleState;
 use crate::lifecycle::tree::Tree;
 use crate::output::OutputCommand;
+use crate::output::ResolvedAttributes;
 use crate::renderer::Renderer;
+use crate::style::{ResolvedTheme, SemanticToken, StyleState, Theme};
 use crate::view::View;
 
 /// The application root: Elm-shaped state with a fallible `update` and a
@@ -119,6 +121,7 @@ pub trait Model {
 pub struct Effects<M = ()> {
     messages: VecDeque<M>,
     quit: bool,
+    theme: Option<Theme>,
 }
 
 impl<M> Effects<M> {
@@ -129,6 +132,7 @@ impl<M> Effects<M> {
         Self {
             messages: VecDeque::new(),
             quit: false,
+            theme: None,
         }
     }
 
@@ -142,6 +146,19 @@ impl<M> Effects<M> {
     /// current update returns.
     pub fn send(&mut self, message: M) {
         self.messages.push_back(message);
+    }
+
+    /// Requests a theme change after this event and its follow-ups succeed.
+    ///
+    /// Last request wins in dispatch/FIFO order, including components.
+    /// A different theme requests repaint even if the update reports no change.
+    /// This does not reset component state or focus.
+    pub fn set_theme(&mut self, theme: Theme) {
+        self.theme = Some(theme);
+    }
+
+    pub(crate) fn take_theme(&mut self) -> Option<Theme> {
+        self.theme.take()
     }
 
     /// Returns `true` once [`Effects::quit`] was called.
@@ -194,6 +211,8 @@ impl<M> Default for Effects<M> {
 /// Read-only input to [`Model::view`] and
 /// [`Component::view`](crate::Component::view): screen size, capabilities,
 /// the injected time, and whether the component being described has focus.
+/// Also shares a capability-resolved theme cache; cloning or changing focus
+/// does not re-resolve the palette.
 ///
 /// # Example
 ///
@@ -205,33 +224,82 @@ impl<M> Default for Effects<M> {
 /// assert_eq!(cx.size(), (80, 24));
 /// assert_eq!(cx.area(), Rect::new(0, 0, 80, 24));
 /// ```
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Context {
     size: (u16, u16),
     capabilities: TerminalCapabilities,
     now: Duration,
     focused: bool,
+    theme: ResolvedTheme,
+    theme_version: u64,
 }
 
 impl Context {
     /// Creates a context. The runtime builds one per frame; tests of a
     /// model's `view` build their own.
     #[must_use]
-    pub const fn new(size: (u16, u16), capabilities: TerminalCapabilities, now: Duration) -> Self {
+    pub fn new(size: (u16, u16), capabilities: TerminalCapabilities, now: Duration) -> Self {
         Self {
             size,
             capabilities,
             now,
             focused: false,
+            theme: Theme::default().resolve(&capabilities.color),
+            theme_version: 0,
         }
     }
 
     /// The same context, marked focused or not. The runtime uses it for each
     /// component; component tests use it to describe a focused component.
     #[must_use]
-    pub const fn with_focused(mut self, focused: bool) -> Self {
-        self.focused = focused;
+    pub fn with_focused(&self, focused: bool) -> Self {
+        let mut context = self.clone();
+        context.focused = focused;
+        context
+    }
+
+    /// Uses an explicit theme for standalone view tests or a local context.
+    /// Runtime theme changes go through [`Effects::set_theme`].
+    #[must_use]
+    pub fn with_theme(mut self, theme: Theme) -> Self {
+        if self.theme.theme() != &theme {
+            self.theme = theme.resolve(&self.capabilities.color);
+            self.theme_version = self.theme_version.wrapping_add(1);
+        }
         self
+    }
+
+    /// The shared cache for the current theme and colour profile.
+    #[must_use]
+    pub const fn theme(&self) -> &ResolvedTheme {
+        &self.theme
+    }
+
+    /// Revision of the app's semantic palette, independent of screen/input versions.
+    #[must_use]
+    pub const fn theme_version(&self) -> u64 {
+        self.theme_version
+    }
+
+    /// Resolves a normal semantic role for `View::styled_text`, spans, or borders.
+    ///
+    /// ```rust
+    /// use std::time::Duration;
+    /// use jilva_core::{Context, SemanticToken, TerminalCapabilities, Theme, View};
+    /// let cx = Context::new((80, 24), TerminalCapabilities::conservative(1), Duration::ZERO)
+    ///     .with_theme(Theme::light());
+    /// let text = View::styled_text("Ready", cx.style(SemanticToken::Success));
+    /// assert_eq!(cx.theme().name(), "jilva-light");
+    /// ```
+    #[must_use]
+    pub fn style(&self, token: SemanticToken) -> ResolvedAttributes {
+        self.theme.style(token)
+    }
+
+    /// Resolves a semantic role with explicit co-present visual states.
+    #[must_use]
+    pub fn style_with(&self, token: SemanticToken, state: StyleState) -> ResolvedAttributes {
+        self.theme.style_with(token, state)
     }
 
     /// Whether the component being described has keyboard focus. Always
@@ -322,6 +390,10 @@ pub struct App<M: Model> {
     state: LifecycleState,
     session: Option<Session>,
     tree: Tree,
+    theme: Theme,
+    theme_version: u64,
+    theme_dirty: bool,
+    pending_theme: Option<Theme>,
     /// Last painted view and its context, for the debug under-report check.
     #[cfg(debug_assertions)]
     last_frame: Option<(View, Context)>,
@@ -340,6 +412,10 @@ impl<M: Model> App<M> {
             state: LifecycleState::Setup,
             session: None,
             tree: Tree::default(),
+            theme: Theme::default(),
+            theme_version: 0,
+            theme_dirty: false,
+            pending_theme: None,
             #[cfg(debug_assertions)]
             last_frame: None,
         }
@@ -349,6 +425,34 @@ impl<M: Model> App<M> {
     #[must_use]
     pub const fn model(&self) -> &M {
         &self.model
+    }
+
+    /// Chooses the initial palette; defaults to [`Theme::dark`].
+    ///
+    /// On an already running value, the next eligible source event repaints.
+    /// Ordinary model/component updates use [`Effects::set_theme`] instead.
+    #[must_use]
+    pub fn with_theme(mut self, theme: Theme) -> Self {
+        self.replace_theme(theme);
+        self
+    }
+
+    /// The app's current merged palette.
+    #[must_use]
+    pub const fn theme(&self) -> &Theme {
+        &self.theme
+    }
+
+    fn replace_theme(&mut self, theme: Theme) {
+        if self.theme != theme {
+            self.theme = theme;
+            self.theme_version = self.theme_version.wrapping_add(1);
+            if let Some(session) = self.session.as_mut() {
+                session.context.theme = self.theme.resolve(&session.context.capabilities.color);
+                session.context.theme_version = self.theme_version;
+                self.theme_dirty = true;
+            }
+        }
     }
 
     /// Consumes the runtime and returns the model.
@@ -378,6 +482,9 @@ impl<M: Model> App<M> {
             let follow_up = self.model.update(Event::Message(message), &mut effects)?;
             change = change.max(follow_up.change());
         }
+        if let Some(theme) = effects.take_theme() {
+            self.pending_theme = Some(theme);
+        }
         Ok((outcome, change, effects.quit_requested()))
     }
 
@@ -387,7 +494,7 @@ impl<M: Model> App<M> {
         let Some(session) = self.session.as_mut() else {
             return Err(Error::Lifecycle("App has no session to paint".to_string()));
         };
-        let context = session.context;
+        let context = session.context.clone();
         let view = self.model.view(&context)?;
         #[cfg(debug_assertions)]
         let described = view.clone();
@@ -398,6 +505,7 @@ impl<M: Model> App<M> {
             expanded = self.tree.expand(self.model.view(&context)?, &context)?;
         }
         let frame = session.renderer.render(&expanded, &context.capabilities);
+        self.theme_dirty = false;
         #[cfg(debug_assertions)]
         {
             self.last_frame = Some((described, context));
@@ -461,7 +569,14 @@ impl<M: Model> Driven for App<M> {
         }
         self.session = Some(Session {
             renderer: Renderer::new(size.0, size.1),
-            context: Context::new(size, *capabilities, now),
+            context: Context {
+                size,
+                capabilities: *capabilities,
+                now,
+                focused: false,
+                theme: self.theme.resolve(&capabilities.color),
+                theme_version: self.theme_version,
+            },
         });
         match self.paint() {
             Ok(frame) => {
@@ -487,17 +602,23 @@ impl<M: Model> Driven for App<M> {
         {
             return Ok(Vec::new());
         }
+        // A failed previous batch cannot leak a pending theme into this event.
+        self.pending_theme = None;
         let Some(session) = self.session.as_mut() else {
             return Err(Error::Lifecycle("running App has no session".to_string()));
         };
         session.context.now = now;
-        let mut change = Change::None;
+        let mut change = if self.theme_dirty {
+            Change::Repaint
+        } else {
+            Change::None
+        };
         if let InputEvent::Resize { cols, rows } = input {
             session.renderer.resize(cols, rows);
             session.context.size = (cols, rows);
             change = Change::Layout;
         }
-        let context = session.context;
+        let context = session.context.clone();
         let mut budget = FollowUps::new(Self::FOLLOW_UP_LIMIT);
 
         let (consumed, routed_change, mut quit) = match &input {
@@ -506,6 +627,9 @@ impl<M: Model> Driven for App<M> {
                 let (_, model_change, model_quit) =
                     self.update_model(Event::from(input.clone()), &mut budget)?;
                 let broadcast = self.tree.broadcast(&input, &context, &mut budget)?;
+                if let Some(theme) = broadcast.theme {
+                    self.pending_theme = Some(theme);
+                }
                 (
                     true,
                     model_change.max(broadcast.change),
@@ -515,6 +639,9 @@ impl<M: Model> Driven for App<M> {
             InputEvent::Key(_) | InputEvent::Paste(_) => {
                 // Focused component, its ancestors, then the model.
                 let routed = self.tree.dispatch_focused(&input, &context, &mut budget)?;
+                if let Some(theme) = routed.theme {
+                    self.pending_theme = Some(theme);
+                }
                 if routed.consumed {
                     (true, routed.change, routed.quit)
                 } else {
@@ -548,8 +675,15 @@ impl<M: Model> Driven for App<M> {
             }
         }
         if quit {
+            self.pending_theme = None;
             self.state = LifecycleState::Shutdown;
             return Ok(Vec::new());
+        }
+        if let Some(theme) = self.pending_theme.take() {
+            self.replace_theme(theme);
+        }
+        if self.theme_dirty {
+            change = change.max(Change::Repaint);
         }
         if change == Change::None {
             #[cfg(debug_assertions)]

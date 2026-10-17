@@ -1,6 +1,6 @@
 # Jilva project guide
 
-Reviewed **2026-10-17** against `43f285a`. This is the single maintained
+Updated **2026-10-17** for semantic themes and the visual baseline. This is the single maintained
 design and planning document. [Quick start](../README.md#try-it) ·
 [Architecture](#architecture) · [Comparison](#framework-comparison) ·
 [Plan](#development-plan) · [Decisions](#design-decisions).
@@ -11,13 +11,13 @@ design and planning document. [Quick start](../README.md#try-it) ·
 | --- | --- | --- |
 | [Terminal](../crates/jilva-terminal/src/backend.rs) | Optional Crossterm, typed input/output, cleanup, capability snapshots, fault-injecting test backend | Managed inline viewport and shell scrollback |
 | [Renderer](../crates/jilva-core/src/renderer.rs) | Grapheme cells, wide-glyph repair, clipping, diff, explicit damage regions, colour degradation | Runtime-generated damage; `Renderer::render` still paints and compares the whole viewport |
-| [Layout and views](../crates/jilva-core/src/view.rs) | Flex rows/columns, constraints, spans, overlays, padding, borders, gradients | Intrinsic measurement, wrapping, scrolling, grid |
+| [Layout and views](../crates/jilva-core/src/view.rs) | Flex rows/columns, constraints, spans, opt-in grapheme-safe wrapping, overlays, axis padding, borders, gradients | Intrinsic measurement, language-specific line breaking, scrolling, grid |
 | [Runtime](../crates/jilva-core/src/lifecycle/app.rs) | `Model`, `App`, FIFO follow-ups, ignored-event fast path, injected time | External message ingress, timer events, animation wakeups, cancellation |
 | [Components](../crates/jilva-core/src/component.rs) | Framework-owned slots, keys, cleanup, Tab focus, bubbling | Parent messages, focus events/scopes, mouse hit-testing; configurations are boxed per description |
-| [Style](../crates/jilva-core/src/style.rs) | Four placeholder semantic tokens; resolved RGB/ANSI/mono output | Full token schema, theme resolver, curated themes, state overlays |
+| [Style](../crates/jilva-core/src/style.rs) | 14 semantic roles, dark/light themes, partial overrides, extensions, composed states, cached tier resolution, runtime switching | Configurable overlay definitions, theme-file adapters |
 | [Motion](../crates/jilva-core/src/motion.rs) | Easing, retargetable transitions, injected time, reduced-motion sampling | Runtime scheduling and theme/component integration |
 
-The counter examples prove the runtime, not a complete widget toolkit.
+Studio demonstrates the visual baseline; counters exercise state and focus.
 Scripted output equality is tested; no session file recorder/replayer exists.
 See [app tests](../tests/app_runtime.rs), [component tests](../tests/components.rs),
 and [render tests](../tests/render_pipeline.rs) for executable evidence.
@@ -89,6 +89,10 @@ The pipeline is describe -> expand components -> layout/paint -> diff -> backend
 cell widths (ambiguous characters use one cell). Terminal width disagreement
 remains possible. Clip/truncate without splitting graphemes or wide-cell pairs.
 Text is data, never raw ANSI. Layout consumes measured cell sizes.
+`View::wrap` preserves span styles and explicit text lines, prefers ASCII-space
+breaks, and splits long words at grapheme boundaries. A two-cell glyph in a
+one-column region becomes a styled blank. Parents still allocate row counts.
+`View::padding_xy` and `Rect::inner_xy` separate horizontal/vertical spacing.
 Flex remainders use largest fraction, earlier item wins ties; overflow makes
 later items yield first. Tiny regions clip safely; a running app rejects zero size.
 `Change::None < Repaint < Layout` is the invalidation contract, but repaint/layout
@@ -97,17 +101,49 @@ a lower-level caller; sparse terminal output alone does not prove cheap updates.
 
 ### Theming contract
 
-The accepted design specifies 14 roles: Background, Surface, Overlay, Border,
+The implementation provides 14 roles: Background, Surface, Overlay, Border,
 Text, Muted, Accent, Success, Warning, Danger, Info, Selection, Cursor, Highlight.
-It specifies two built-ins (`jilva-dark`, `jilva-light`) with automatic mono
+Two built-ins (`jilva-dark`, `jilva-light`) have automatic mono
 resolution. App deltas override a base, with dark filling missing tokens.
 Merge tokens first, apply state overlays, then degrade to terminal capabilities.
 Overlay order is Hovered < Active < Focused < Selected; Disabled overrides all.
 Focus/selection must remain distinguishable without colour. Missing extension
 tokens fall back to Text with a debug marker. Theme switches invalidate paint,
-not geometry; merge and quantization caches have separate version keys.
-These are design commitments, not implemented APIs; the four-token placeholder
-and the accepted vocabulary must be reconciled explicitly in the next PR.
+not geometry. Merged palettes and resolved caches are separate values: the app's
+theme revision changes only for a different palette; input, time, and resize
+reuse resolution. Use `App::with_theme`, `Context::style/style_with`, and
+`Effects::set_theme`. Requests commit after successful update/follow-up dispatch,
+last request wins; a repeated palette needs no repaint. Raw `View::text` remains
+terminal-default text; pass semantic attributes to styled text, spans, and borders.
+Missing extensions return Text plus an explicit `missing_extension` diagnostic.
+Disabled is visual state, so widgets must still reject disabled interaction.
+Mono retains supported reverse video; widgets need structural markers for
+independent focus/selection indications. Studio uses `>` for focus and `·` for
+selection, plus a filled primary action that remains distinct in mono.
+
+`SemanticToken::Selected` retains its original name and resolves as Selection.
+Migration: `Context` is now cheaply `Clone` rather than `Copy`, sharing the
+resolved cache; use `.clone()` when retaining a context. Its `new` and
+`with_focused` are no longer const; the latter borrows the source context.
+The initial overlays have fixed transforms; configurable transforms remain
+follow-up work. [Theming tests](../tests/theming.rs) cover switching/state/focus
+and all terminal tiers. `themes --headless` exercises three studies and sizes
+across all tiers. `--snapshots DIR` exports actual renderer commands as SVG/text;
+SVG pixels assume a monospace font and the documented standard ANSI palette,
+so physical emulator/font checks remain separate.
+The value-based overrides and role vocabulary take cues from
+[Cursive palettes](https://docs.rs/cursive/latest/cursive/theme/index.html) and
+[Textual theme variables](https://textual.textualize.io/guide/design/);
+this implementation keeps resolution pure and adds no parser dependency.
+
+The visual baseline is expressive: Electric dusk uses lime/cyan on deep indigo;
+Prism paper uses violet/blue. Built-in text roles meet a 4.5:1 contrast floor on
+Background/Surface/Overlay in truecolor, 256-colour, and the standard ANSI16
+table; user-remapped ANSI colours can differ. Selection/cursor/highlight pairs
+are checked too. 256-colour conversion chooses the nearest stable cube or gray
+entry, preserving near-neutral surface depth. The [Studio](../examples/themes.rs)
+uses semantic endpoints for its shimmer, controlled components, and stable keys.
+Its geometry fixture covers 120×36, 80×24, and 40×18, including compact actions.
 
 ## Framework comparison
 
@@ -143,19 +179,23 @@ Rust alpha. General TUIs remain supported; the streaming demo sets priorities.
 ## Development plan
 
 Each milestone is a small sequence of reviewable PRs, in dependency order.
-All items below are **planned**; completing foundations does not complete them.
+Milestone 1 is implemented; milestones 2–7 remain planned.
+Visual quality is a release gate: review real renderer frames in dark/light and
+mono at wide/compact sizes, preserve focus/state through resize, and keep the
+primary action and exit visible. New widgets must meet the same baseline.
 
 | Order | Deliverable and code area | Acceptance gate |
 | --- | --- | --- |
 | 1 | Theme resolver in `style.rs`, context/view integration, facade exports | Reconcile 4 vs 14 tokens; dark/light snapshots across truecolor/256/16/mono; partial overrides and Selected+Focused/Disabled cases; theme switch leaves geometry/focus intact |
 | 2 | External typed messages and scheduled wakeups in runtime/driver | Bounded ingress with explicit full/disconnected results; per-turn fairness; deterministic ordering; cancellation/shutdown; fake-clock animation advances without keyboard input and stops waking when idle |
-| 3 | Text measurement/wrapping, viewport, multiline prompt | Grapheme editing, paste limits, history; only visible transcript content painted; append preserves a scrolled-up anchor; resize reflows correctly; configurable byte/item/cache caps survive overflow |
+| 3 | Intrinsic measurement, cached reflow, viewport, multiline prompt (basic wrapping implemented) | Grapheme editing, paste limits, history; only visible transcript content painted; append preserves a scrolled-up anchor; resize reflows correctly; configurable byte/item/cache caps survive overflow |
 | 4 | Managed inline mode plus plain transcript adapter in terminal/renderer | Interactive footer + committed scrollback; one terminal writer; resize does not duplicate/erase history; normal/error/unwind restoration; redirected mode emits text without cursor controls |
 | 5 | Offline `agent_chat` example and reusable streaming components | Scripted replies, Markdown subset, code/tool/diff cards, approval; arbitrary chunk boundaries preserve final text; keyboard-only use, cancellation, no network/API key; same script drives headless tests |
 | 6 | Opt-in recording/replay adapter and regression helper | Versioned initial state fixture + capabilities, dimensions, theme, width-policy/build identity, time, ordered input/messages/completions; replay runs no live effects; two replays match frames; report first mismatching event/cell |
 | 7 | Alpha completion, measured performance, external use | Text/list/table/input/tabs/status bar and accepted grid scope; tested examples/package; platform/terminal evidence; two independently written downstream apps; migration notes and declared MSRV policy |
 
-Start with milestone 1. Introduce a tiny scripted streaming example after
+Next: milestone 2, bounded external messages and scheduled wakeups.
+Introduce a tiny scripted streaming example after
 milestone 3, then grow it through 4–6; do not wait for a complete widget gallery.
 Parent-message routing and focus scopes belong with interactive widgets;
 explicitly design them before approval dialogs. Generic grid and additional
@@ -208,11 +248,12 @@ Keep checks in [CONTRIBUTING.md](../CONTRIBUTING.md) and API examples in rustdoc
 | --- | --- | --- |
 | RFC-0001 | Accepted, recorded 2026-10-16; revalidated 2026-10-17 | Rust alpha scope includes runtime, flex/grid, themes, essential widgets |
 | RFC-0002 | Accepted, same dates | Hybrid model, framework slots, explicit identity, pure descriptions, synchronous core |
-| RFC-0003 | Accepted, same dates | Semantic theme schema and capability fallbacks; implementation pending |
+| RFC-0003 | Accepted, same dates | Theme roles, palettes, overlays, fallbacks, and switching implemented; configurable transforms remain |
 | RFC-0004–0007 | Draft | Rendering, flex, views, motion implemented; implementation is not design acceptance |
 | RFC-0008 | Draft | Runtime/components implemented in slices; default cleanup and other amendments still need recorded decisions |
 | ADR-0001–0004 | Accepted records retained | Rust first, three crates, Crossterm seam; agent/streaming CLIs with beauty and reproducibility |
 | This plan | Proposed, 2026-10-17 | Priorities and gates above; no new feature acceptance implied |
+| Theme integration | Implemented, review pending, 2026-10-17 | Preserve Selected alias; Context shares a resolved cache via Clone; fixed default transforms; no new dependencies |
 
 Keep future proposals in PR descriptions: problem, contract, alternatives,
 tests, and unresolved items with owners. Record dated maintainer decisions

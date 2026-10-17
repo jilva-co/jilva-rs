@@ -14,7 +14,7 @@
 //! batch before buffering it, so untrusted text cannot inject terminal
 //! controls through directly constructed commands.
 
-use crate::capabilities::ColorTier;
+use crate::capabilities::{ColorProfile, ColorTier};
 use crate::layout::Rect;
 use std::io;
 
@@ -269,6 +269,27 @@ impl ResolvedAttributes {
             strikethrough: self.strikethrough,
         }
     }
+
+    /// Resolves colours and decorations against a colour profile.
+    ///
+    /// Mono suppresses decorative attributes even if an override claims them;
+    /// reverse video is structural and remains gated by support.
+    #[must_use]
+    pub const fn for_profile(self, profile: &ColorProfile) -> Self {
+        let support = if profile.color.is_mono() {
+            profile.attrs.stripped_for_no_color()
+        } else {
+            profile.attrs
+        };
+        let mut out = self.downgraded_to(profile.color);
+        out.bold &= support.bold;
+        out.dim &= support.dim;
+        out.italic &= support.italic;
+        out.underline &= support.underline;
+        out.reverse &= support.reverse;
+        out.strikethrough &= support.strikethrough;
+        out
+    }
 }
 
 /// A resolved colour value: what the backend turns into escape bytes.
@@ -364,9 +385,10 @@ impl ResolvedColor {
     /// inputs: never fails, never guesses beyond the documented rules.
     ///
     /// - `Truecolor`: identity.
-    /// - `Palette256`: `Rgb` maps onto the 6×6×6 colour cube
-    ///   (or the grayscale ramp when `r == g == b`); other values pass
-    ///   through.
+    /// - `Palette256`: `Rgb` maps to the nearest cube or grayscale entry
+    ///   by squared RGB distance. Ties prefer the lower palette index.
+    ///   The user-remappable first 16 entries are not candidates; other
+    ///   colour values pass through.
     /// - `Ansi16`: `Palette(i)` with `i < 16` maps onto the
     ///   matching ANSI colour; `Rgb` maps onto the nearest ANSI colour by
     ///   squared RGB distance over the standard 16-entry table. All other
@@ -532,19 +554,41 @@ pub(crate) const fn mix_channel(under: u8, top: u8, alpha: u8) -> u8 {
     ((top as u32 * alpha + under as u32 * (255 - alpha) + 127) / 255) as u8
 }
 
-/// Maps an RGB triple onto the 256-colour palette: grayscale ramp when the
-/// channels are equal, otherwise the 6×6×6 cube (integer steps, no float).
+/// Nearest stable xterm entry: cube (16..=231) or gray ramp (232..=255).
 const fn rgb_to_palette256(r: u8, g: u8, b: u8) -> u8 {
-    if r == g && g == b {
-        if r < 8 {
-            return 16;
-        }
-        if r > 248 {
-            return 231;
-        }
-        return (232 + (r as u16 - 8) * 24 / 256) as u8;
+    const LEVELS: [u8; 6] = [0, 95, 135, 175, 215, 255];
+    let (ri, gi, bi) = (cube_index(r), cube_index(g), cube_index(b));
+    let cube = 16 + ri * 36 + gi * 6 + bi;
+    let cube_distance = dist2(r, LEVELS[ri as usize])
+        + dist2(g, LEVELS[gi as usize])
+        + dist2(b, LEVELS[bi as usize]);
+    // The mean minimizes the squared error of a neutral candidate. Round
+    // to the ramp with lower-index ties, then compare it with the cube.
+    let sum = r as u16 + g as u16 + b as u16;
+    let gray_index = sum.saturating_sub(24).saturating_add(14) / 30;
+    let gray_index = if gray_index > 23 {
+        23
+    } else {
+        gray_index as u8
+    };
+    let gray = 8 + gray_index * 10;
+    let gray_distance = dist2(r, gray) + dist2(g, gray) + dist2(b, gray);
+    if gray_distance < cube_distance {
+        232 + gray_index
+    } else {
+        cube
     }
-    (16 + (r as u16 * 6 / 256) * 36 + (g as u16 * 6 / 256) * 6 + (b as u16 * 6 / 256)) as u8
+}
+
+const fn cube_index(value: u8) -> u8 {
+    match value {
+        0..=47 => 0,
+        48..=115 => 1,
+        116..=155 => 2,
+        156..=195 => 3,
+        196..=235 => 4,
+        _ => 5,
+    }
 }
 
 /// Nearest ANSI colour by squared RGB distance over the standard table.
@@ -697,7 +741,7 @@ mod tests {
         // Grayscale lands on the ramp, not the cube: 232 + (128-8)*24/256 = 243.
         assert_eq!(
             ResolvedColor::Rgb(128, 128, 128).downgrade(ColorTier::Palette256),
-            ResolvedColor::Palette(243)
+            ResolvedColor::Palette(244)
         );
         // Low palette indices survive to Ansi16; extended ones do not guess.
         assert_eq!(
@@ -807,5 +851,43 @@ mod tests {
         }
         assert_eq!(Ansi16Color::from_index(16), None);
         assert_eq!(Ansi16Color::from_index(255), None);
+    }
+
+    #[test]
+    fn palette256_keeps_neutral_depth_and_exact_palette_colours() {
+        for index in 16..=255 {
+            let (r, g, b) = ResolvedColor::Palette(index).to_rgb((0, 0, 0));
+            assert_eq!(rgb_to_palette256(r, g, b), index);
+        }
+        assert_eq!(rgb_to_palette256(19, 21, 25), 233);
+        assert_eq!(rgb_to_palette256(26, 29, 34), 234);
+        assert_eq!(rgb_to_palette256(38, 43, 49), 236);
+        assert_eq!(rgb_to_palette256(115, 0, 0), 52, "lower-index cube tie");
+    }
+
+    #[test]
+    fn palette256_matches_an_exhaustive_nearest_colour_search() {
+        // Independent brute-force oracle over 4,096 colours. The production
+        // path compares two candidates without scanning the palette.
+        for r in (0..=255).step_by(17) {
+            for g in (0..=255).step_by(17) {
+                for b in (0..=255).step_by(17) {
+                    let expected = (16..=255)
+                        .min_by_key(|index| {
+                            let (cr, cg, cb) = ResolvedColor::Palette(*index).to_rgb((0, 0, 0));
+                            [
+                                i32::from(r) - i32::from(cr),
+                                i32::from(g) - i32::from(cg),
+                                i32::from(b) - i32::from(cb),
+                            ]
+                            .into_iter()
+                            .map(|d| d * d)
+                            .sum::<i32>()
+                        })
+                        .unwrap();
+                    assert_eq!(rgb_to_palette256(r, g, b), expected, "{r},{g},{b}");
+                }
+            }
+        }
     }
 }

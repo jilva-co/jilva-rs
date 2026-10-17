@@ -7,9 +7,14 @@
 A Rust TUI framework for streaming CLIs, with an explicit update/view loop,
 reusable components, and terminal-independent rendering.
 
+![Jilva Studio: an actual 120 × 36 renderer frame](assets/studio-dark.svg)
+
+Electric dusk and [Prism paper](assets/studio-light.svg): expressive defaults,
+visible keyboard focus, and layouts that adapt to the terminal.
+
 **Unreleased (`0.0.0`).** The terminal backend, renderer, flex layout, app
-runtime, and first component slice work. Themes, ready-made widgets, inline
-scrollback, external streaming sources, and session recording are planned.
+runtime, components, and semantic dark/light themes work. Ready-made widgets,
+inline scrollback, external streaming sources, and session recording are planned.
 
 **[Project guide and development plan](docs/README.md)** — current capabilities,
 architecture, framework comparison, milestones, and design decisions in one file.
@@ -23,14 +28,17 @@ Requires the pinned Rust **1.98.1** toolchain (edition 2024) and Git.
 git clone https://github.com/jilva-co/jilva-rs.git
 cd jilva-rs
 cargo test --workspace --locked
-cargo run -p jilva --example counter --locked
+cargo run -p jilva --example themes --locked
 ```
 
-In the counter, `+` / `-` change the value; `q` or Ctrl+C exits.
-For two components with independent state and Tab / Shift+Tab focus:
+In Studio, `1` / `2` / `3` or arrows choose a study; Tab moves focus,
+Enter selects/undoes a direction, `t` switches dark/light, and `q` quits.
+Everything runs offline. Styles use semantic roles rather than app-defined RGB.
+For smaller examples of state and focus:
 
 ```sh
 cargo run -p jilva --example counters --locked
+cargo run -p jilva --example counter --locked
 ```
 
 For CI or a shell without an interactive terminal:
@@ -38,7 +46,11 @@ For CI or a shell without an interactive terminal:
 ```sh
 cargo run -p jilva --no-default-features --example headless_demo --locked
 cargo run -p jilva --no-default-features --example view_demo --locked
+cargo run -p jilva --no-default-features --example themes --locked -- --headless
 ```
+
+Add `--snapshots target/studio` instead of `--headless` to export SVG/text frames
+at 120×36, 80×24, and 40×18 across all four colour tiers, without a terminal.
 
 The default `crossterm` feature supplies the real terminal backend. Disabling
 defaults keeps the headless backend and runtime without a terminal library.
