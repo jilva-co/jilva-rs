@@ -4,13 +4,11 @@
 //! `jilva-terminal` directly — so anything they need must be reachable
 //! through the facade (keeps `docs/ARCHITECTURE.md` §7 honest).
 //!
-//! Note on `expect` usage below: the in-memory test-double backend is
-//! infallible by construction, so `expect` here asserts the seam contract
-//! rather than hiding fallible I/O.
+//! The test backend uses no OS terminal and has no injected failures here.
 
 use jilva::{
-    Backend, CapabilityProfile, Cell, ComponentId, Error, Event, LifecycleState, Rect,
-    SemanticToken, TestDoubleBackend,
+    Backend, Cell, ComponentId, Error, Event, LifecycleState, Rect, SemanticToken,
+    TerminalCapabilities, TestDoubleBackend,
 };
 
 #[test]
@@ -20,8 +18,8 @@ fn facade_reports_unreleased_version() {
 
 #[test]
 fn facade_error_taxonomy_displays() {
-    let error = Error::Backend("no real backend yet".to_string());
-    assert_eq!(error.to_string(), "backend error: no real backend yet");
+    let error = Error::Backend("session unavailable".to_string());
+    assert_eq!(error.to_string(), "backend error: session unavailable");
 }
 
 #[test]
@@ -52,11 +50,11 @@ fn facade_events_classify_layout_impact() {
 
 #[test]
 fn facade_test_double_backend_round_trips() {
-    let mut backend = TestDoubleBackend::new(CapabilityProfile::basic());
+    let mut backend = TestDoubleBackend::new(TerminalCapabilities::conservative(0));
     assert_eq!(backend.name(), "test-double");
-    backend.enter().expect("test-double enter is infallible");
+    backend.enter().expect("no injected enter failure");
     assert!(backend.is_entered());
-    backend.leave().expect("test-double leave is infallible");
+    backend.leave().expect("no injected leave failure");
     assert!(!backend.is_entered());
     assert_eq!(backend.log(), &["enter".to_string(), "leave".to_string()]);
 }

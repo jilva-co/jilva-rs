@@ -1,15 +1,14 @@
-//! Honest Phase-1 demo: everything actually implemented, nothing faked.
+//! Facade foundation smoke example, runnable without a terminal.
 //!
 //! Prints the facade version, exercises the error taxonomy, lays out one
-//! cell-geometery region, and drives the in-memory test-double backend.
-//! This is NOT a TUI hello-world — there is no renderer or backend yet, and
-//! this example refuses to pretend otherwise.
+//! cell-geometry region, and drives the in-memory test backend. The real
+//! terminal engine has its own `backend_demo` example.
 //!
 //! Run with: `cargo run -p jilva --example version`
 
 use jilva::{
-    Backend, CapabilityProfile, Cell, ComponentId, Error, Event, LifecycleState, Rect,
-    SemanticToken, TestDoubleBackend,
+    Backend, Cell, ComponentId, Error, Event, LifecycleState, Rect, SemanticToken,
+    TerminalCapabilities, TestDoubleBackend,
 };
 
 fn main() {
@@ -29,16 +28,15 @@ fn main() {
     let error = Error::Layout("example: no constraints to solve yet".to_string());
     println!("error taxonomy: {error}");
 
-    let mut backend = TestDoubleBackend::new(CapabilityProfile::basic());
-    // Justification for expect: the in-memory double is infallible by
-    // construction; a failure here would mean the seam itself is broken.
-    backend.enter().expect("test-double enter is infallible");
+    let mut backend = TestDoubleBackend::new(TerminalCapabilities::conservative(0));
+    // No failures are configured in this small headless example.
+    backend.enter().expect("no injected enter failure");
     println!(
         "backend '{}' entered: {}",
         backend.name(),
         backend.is_entered()
     );
-    backend.leave().expect("test-double leave is infallible");
+    backend.leave().expect("no injected leave failure");
 
     println!(
         "component {}, token '{}', cell blank: {}",

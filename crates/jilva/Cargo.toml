@@ -1,15 +1,19 @@
 [package]
 name = "jilva"
-# unreleased Phase-1 foundation
+# Unreleased terminal-engine milestone.
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
-description = "Public facade for jilva-rs (Phase-1 re-exports only, no logic)"
+description = "Public facade for the Jilva terminal UI framework"
+
+[features]
+default = ["crossterm"]
+crossterm = ["jilva-terminal/crossterm"]
 
 [dependencies]
 jilva-core = { version = "0.0.0", path = "../jilva-core" }
-jilva-terminal = { version = "0.0.0", path = "../jilva-terminal" }
+jilva-terminal = { version = "0.0.0", path = "../jilva-terminal", default-features = false }
 
 [lints]
 workspace = true
@@ -22,6 +26,23 @@ workspace = true
 name = "version"
 path = "../../examples/version.rs"
 
+[[example]]
+name = "backend_demo"
+path = "../../examples/backend_demo.rs"
+required-features = ["crossterm"]
+
+[[example]]
+name = "headless_demo"
+path = "../../examples/headless_demo.rs"
+
 [[test]]
 name = "facade_smoke"
 path = "../../tests/facade_smoke.rs"
+
+[[test]]
+name = "backend_session"
+path = "../../tests/backend_session.rs"
+
+[[test]]
+name = "backend_io"
+path = "../../tests/backend_io.rs"

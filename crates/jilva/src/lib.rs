@@ -1,11 +1,12 @@
 //! Public facade for `jilva-rs`: the only crate users depend on directly.
 //!
-//! **Phase-1 status:** re-exports only — no logic lives here, per
-//! `docs/ARCHITECTURE.md` §3.1 and §6. There is no `App`, no run loop, no
-//! widget, and no real backend yet; those arrive via the RFC process. What
-//! exists is the curated surface in its final shape: every item below is
-//! reachable through this crate so that `examples/` and `tests/` only ever
-//! import the facade, keeping it honest.
+//! Phase 2 exposes synchronous terminal sessions, typed input and output,
+//! capability snapshots, and a deterministic headless backend. This facade
+//! contains re-exports and documentation; the application runtime, renderer,
+//! layout solver, and widgets belong to later milestones.
+//!
+//! The default `crossterm` feature provides the real terminal backend.
+//! Disable default features for a terminal-library-free headless build.
 //!
 //! # Example
 //!
@@ -18,18 +19,29 @@
 
 pub use jilva_core::component::ComponentId;
 pub use jilva_core::error::{Error, Result};
-pub use jilva_core::events::Event;
+pub use jilva_core::events::{Event, InputEvent, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
+pub use jilva_core::events::{MouseButton, MouseEvent, MouseKind, SpecialKey};
 pub use jilva_core::layout::Rect;
 pub use jilva_core::lifecycle::LifecycleState;
+pub use jilva_core::output::{Ansi16Color, OutputCommand, ResolvedAttributes, ResolvedColor};
 pub use jilva_core::renderer::Cell;
-pub use jilva_core::style::{ColorDepth, SemanticToken};
+pub use jilva_core::style::SemanticToken;
+pub use jilva_core::{
+    AttrSupport, BackgroundHint, ColorProfile, ColorTier, InputProfile, KeyEncoding, ScreenProfile,
+    TerminalCapabilities,
+};
 pub use jilva_terminal::backend::Backend;
-pub use jilva_terminal::capabilities::CapabilityProfile;
-pub use jilva_terminal::test_double::TestDoubleBackend;
+pub use jilva_terminal::capabilities::{
+    CapabilitySource, DetectionReport, EnvSnapshot, detect, detect_from_env,
+    detect_report_from_env, detect_with_overrides, refresh,
+};
+#[cfg(feature = "crossterm")]
+pub use jilva_terminal::crossterm_backend::{BackendOptions, CrosstermBackend};
+pub use jilva_terminal::test_double::{FailOp, TestDoubleBackend};
 
 /// Returns the facade version users see.
 ///
-/// Still `0.0.0`: Phase-1 foundation, unreleased. Tracks the workspace
+/// Still `0.0.0`: unreleased. Tracks the workspace
 /// version so the facade semver promise (`docs/API_DESIGN.md` §2) has one
 /// observable source of truth from day one.
 ///

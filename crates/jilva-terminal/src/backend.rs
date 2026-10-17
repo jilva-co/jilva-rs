@@ -1,33 +1,146 @@
 //! The backend seam: everything touching a real terminal hides here.
 //!
-//! **Phase-1 status:** the smallest honest interface — setup, teardown, and
-//! a name for diagnostics. Reading input events, writing draw instruction
-//! streams, and reporting size/capabilities are RFC detail and are
-//! deliberately absent so no fake backend can pretend to draw.
+//! **Phase-2 status:** the full contract method set from
+//! `docs/PHASE2_BACKEND_CONTRACT.md` §1 — identity, session, observation,
+//! emission, and cached capabilities. The framework drives; the backend
+//! obeys. The backend never consumes components, app state, or style tokens.
+//! Rectangles are plain terminal cell geometry for clear commands.
+//!
+//! ## Canonical types
+//!
+//! Shared plain-data types (`InputEvent`, `OutputCommand`,
+//! `TerminalCapabilities` and sub-types) are owned by `jilva-core` and
+//! re-exported below. See `docs/PHASE2_BACKEND_CONTRACT.md` §4.1.
 
 use std::io;
+use std::time::Duration;
+
+// ---------------------------------------------------------------------------
+// Canonical shared types (contract section 4.1).
+//
+// `jilva-core` owns every shared plain-data type; this module re-exports
+// them so backend implementors have a single import hub. Definitions live
+// in `jilva-core/src/{capabilities,events,output,layout}.rs`.
+// ---------------------------------------------------------------------------
+
+pub use jilva_core::{
+    Ansi16Color, AttrSupport, BackgroundHint, ColorProfile, ColorTier, InputEvent, InputProfile,
+    KeyCode, KeyEncoding, KeyEvent, KeyEventKind, KeyModifiers, MouseButton, MouseEvent, MouseKind,
+    OutputCommand, Rect, ResolvedAttributes, ResolvedColor, ScreenProfile, SpecialKey,
+    TerminalCapabilities,
+};
+
+// ---------------------------------------------------------------------------
+// The seam.
+// ---------------------------------------------------------------------------
 
 /// Narrow interface isolating all terminal interaction.
 ///
-/// The framework drives everything else; the backend only enters and leaves
-/// terminal mode. Backend selection happens at the app-construction edge, so
-/// swapping in [`crate::TestDoubleBackend`] never changes production code.
-/// Implementations must restore the terminal in `leave` on every exit path.
+/// The framework drives everything else; the backend only translates between
+/// decoded [`InputEvent`]s / [`OutputCommand`]s and the real terminal.
+/// Backend selection happens at the app-construction edge, so swapping in
+/// [`crate::TestDoubleBackend`] never changes production code.
+///
+/// ## Session rules (contract §6)
+///
+/// One live session per backend instance. `enter` on an entered backend is an
+/// error; `leave` on a non-entered backend is `Ok(())` (idempotent, so `Drop`
+/// guards and double-teardown paths are safe). `size` / `poll` / `read` /
+/// `submit` / `flush` outside a live session fail loud. All mutating methods
+/// take `&mut self`, so there is no reentrancy by construction.
+///
+/// Every method is required: both production backends implement the full
+/// trait, and the fail-loud session policy below is enforced by each
+/// implementor. Shared data and error semantics are identical for the real
+/// backend and the headless substitute.
 pub trait Backend {
     /// Returns a human-readable backend name for diagnostics and errors.
     fn name(&self) -> &str;
 
-    /// Enters terminal mode (alternate screen, raw mode, or equivalents).
+    /// Acquires terminal resources and caches one capability snapshot.
+    /// Optional modes are enabled only according to supported session options.
     ///
     /// # Errors
     ///
-    /// Returns [`io::Error`] when the terminal cannot be entered.
+    /// Returns [`io::Error`] when the terminal cannot be entered, or when
+    /// called on an already-entered backend. A failed rollback retains pending
+    /// cleanup state for a later `leave` or Drop attempt.
     fn enter(&mut self) -> io::Result<()>;
 
-    /// Restores the terminal, undoing everything [`Backend::enter`] did.
+    /// Restores the terminal, undoing everything [`Backend::enter`] did, in
+    /// reverse order.
+    ///
+    /// Idempotent: leaving a non-entered backend is `Ok(())`.
     ///
     /// # Errors
     ///
-    /// Returns [`io::Error`] when the terminal cannot be restored.
+    /// Returns [`io::Error`] when the terminal cannot be restored. Teardown
+    /// still attempts every restoration step and retains failed resource flags
+    /// for retry. Successful teardown discards pending input/output.
     fn leave(&mut self) -> io::Result<()>;
+
+    /// Returns the current terminal size in cells (columns, rows).
+    ///
+    /// A zero width or height is reported as an error, never as `(0, 0)`.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`io::Error`] outside a live session, when the size cannot
+    /// be queried, or when the terminal reports a degenerate size.
+    fn size(&self) -> io::Result<(u16, u16)>;
+
+    /// Returns `true` when the input source is ready. `Duration::ZERO` makes
+    /// this a non-blocking poll. Filtering unsupported input can still cause
+    /// the subsequent [`Backend::read`] to return `None`.
+    ///
+    /// Uses the supplied wait bound subject to OS scheduling. The headless
+    /// backend returns immediately for every timeout.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`io::Error`] outside a live session or when the terminal
+    /// cannot be polled.
+    fn poll(&mut self, timeout: Duration) -> io::Result<bool>;
+
+    /// Drains one decoded input event, or `Ok(None)` when the queue is empty.
+    ///
+    /// `Ok(None)` is normal operation. Unsupported or capability-gated input
+    /// is counted and skipped within a bounded read; the next call can
+    /// continue draining. Terminal-library I/O errors are propagated with their
+    /// source and kind. A zero-time readiness probe prevents waiting for input;
+    /// callers must not read Crossterm input concurrently outside this seam.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`io::Error`] outside a live session or on terminal I/O
+    /// failure (distinct from a skipped undecodable sequence, which is not
+    /// an error).
+    fn read(&mut self) -> io::Result<Option<InputEvent>>;
+
+    /// Validates the complete batch, then buffers commands in FIFO order
+    /// without terminal writes. Invalid text or geometry leaves the existing
+    /// pending batch untouched. ESC, C0, DEL and C1 text are rejected.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`io::Error`] outside a live session or for invalid commands.
+    fn submit(&mut self, commands: &[OutputCommand]) -> io::Result<()>;
+
+    /// Commits everything buffered by [`Backend::submit`] since the last
+    /// `flush` to the terminal, in order. After `Ok(())` the buffer is empty.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`io::Error`] on failure. An attempted flush discards its pending
+    /// batch even on failure: some bytes may already have reached the terminal,
+    /// so automatic replay would duplicate an unknown prefix. A caller may
+    /// explicitly submit a fresh recovery batch. OS writes are not atomic.
+    fn flush(&mut self) -> io::Result<()>;
+
+    /// Returns the cached capability snapshot established at [`Backend::enter`],
+    /// with geometry/version updates for consumed resize events.
+    ///
+    /// Never re-probes the terminal. Before enter, returns the backend's
+    /// conservative or explicitly injected profile.
+    fn capabilities(&self) -> TerminalCapabilities;
 }

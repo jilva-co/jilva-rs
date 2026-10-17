@@ -4,13 +4,9 @@
 # Detached experiment crates build their own target dirs (see experiments/).
 experiments/**/target/
 
-# Cargo.lock is NOT committed for this lib-only workspace.
-# Standard Rust library practice: applications commit Cargo.lock for
-# reproducible builds; libraries omit it so downstream resolvers are not
-# pinned by the library author. This workspace ships no binaries, so the
-# lockfile would only add merge noise. (If a binary/example target or a
-# crates.io-published app is added later, revisit: commit Cargo.lock then.)
-Cargo.lock
+# Commit the workspace lockfile for reproducible engine/demo/CI verification.
+# Library consumers still resolve dependencies using their own lockfiles.
+experiments/**/Cargo.lock
 
 # Compiler / editor backups.
 **/*.rs.bk
