@@ -228,3 +228,41 @@ fn layout_regions_drive_painting_and_damage() {
         ]
     );
 }
+
+#[test]
+fn a_described_view_reaches_the_backend_and_only_changes_follow() {
+    use jilva::{BorderStyle, Constraint, View};
+
+    let caps = caps();
+    let mut backend = live_backend(20, 5);
+    let mut renderer = Renderer::new(20, 5);
+    let screen = |n: u32| {
+        View::column([
+            (Constraint::Length(1), View::text("status")),
+            (
+                Constraint::Fill(1),
+                View::text(&format!("n={n}")).bordered(BorderStyle::Plain, plain()),
+            ),
+        ])
+    };
+
+    let first = renderer.render(&screen(1), &caps);
+    backend.submit(&first).expect("first frame validates");
+    backend.flush().expect("flush");
+    assert_eq!(
+        renderer.back_buffer().text_rows()[2],
+        "│n=1               │"
+    );
+
+    let second = renderer.render(&screen(2), &caps);
+    assert_eq!(
+        second,
+        [
+            OutputCommand::move_to(3, 2),
+            OutputCommand::print_segment("2")
+        ]
+    );
+    backend.submit(&second).expect("delta validates");
+    backend.flush().expect("flush");
+    assert!(renderer.render(&screen(2), &caps).is_empty());
+}

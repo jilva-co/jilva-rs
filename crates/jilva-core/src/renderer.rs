@@ -37,6 +37,7 @@ pub use width::{cluster_width, graphemes, text_width, truncate_to_width};
 
 use crate::capabilities::{ColorProfile, TerminalCapabilities};
 use crate::output::OutputCommand;
+use crate::view::View;
 
 /// A double-buffered renderer: paint into the back buffer, then
 /// [`Renderer::present`] to get the instruction stream that updates the
@@ -184,6 +185,34 @@ impl Renderer {
         self.needs_redraw = false;
         self.color = Some(caps.color);
         stream
+    }
+
+    /// Immediate-mode convenience: clears the back buffer, paints `view` over
+    /// the whole screen, and presents with [`Damage::Full`].
+    ///
+    /// The describe → paint → diff pipeline in one call. Only changed cells
+    /// cross the seam (the diff still compares against the front buffer), but
+    /// every cell is repainted and compared; retained-mode callers that know
+    /// what changed should paint into [`Renderer::back_buffer_mut`] and pass
+    /// a [`Damage`] to [`Renderer::present`] instead.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use jilva_core::{Renderer, TerminalCapabilities, View};
+    ///
+    /// let caps = TerminalCapabilities::conservative(1);
+    /// let mut renderer = Renderer::new(8, 1);
+    /// let first = renderer.render(&View::text("hi"), &caps);
+    /// assert!(!first.is_empty());
+    /// // Same view again: nothing to send.
+    /// assert!(renderer.render(&View::text("hi"), &caps).is_empty());
+    /// ```
+    #[must_use]
+    pub fn render(&mut self, view: &View, caps: &TerminalCapabilities) -> Vec<OutputCommand> {
+        self.back.clear();
+        view.paint(self.back.area(), &mut self.back);
+        self.present(&Damage::Full, caps)
     }
 
     /// Copies the damaged spans of the back buffer into the front buffer,

@@ -32,6 +32,7 @@ pub use jilva_core::renderer::{
     text_width, truncate_to_width,
 };
 pub use jilva_core::style::SemanticToken;
+pub use jilva_core::view::{BorderStyle, Span, View};
 pub use jilva_core::{
     AttrSupport, BackgroundHint, ColorProfile, ColorTier, InputProfile, KeyEncoding, ScreenProfile,
     TerminalCapabilities,

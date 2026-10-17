@@ -129,9 +129,12 @@ Phase-3 branch; RFC-0005 Draft, `docs/RFC/0005-layout-solver.md`):
   `Percentage`, `Min`, `Max`, `Fill`), gap, alignment, named remainder rule
   (largest fraction, earlier item wins ties), never-panic overflow policy
   (later items yield first); `Rect::{right, bottom, intersection, inner}`
-- [ ] Grid tracks, measure/arrange protocol, nesting
+- [x] Owned `View` description + paint pass + `Renderer::render` (RFC-0006
+  Draft, `docs/RFC/0006-view-description.md`): text/spans, row/column,
+  overlay, padding, borders; infallible clipped paint
+- [ ] Grid tracks, measure/arrange protocol (intrinsic sizing), text wrapping
 - [ ] Component contract (RFC-2 reflected in code), invalidation wiring
-- [ ] Maintainer decision on RFC-0005
+- [ ] Maintainer decisions on RFC-0005 and RFC-0006
 
 Original scope, for reference:
 

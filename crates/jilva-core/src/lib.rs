@@ -4,7 +4,8 @@
 //! capability profiles, and pure validation/versioning helpers. Phase 3 adds
 //! the rendering engine: a grapheme-aware cell [`Buffer`], damage tracking,
 //! and a pure [`diff`] that turns two buffers into an instruction stream.
-//! A first Phase 4 slice adds a one-dimensional flex [`Layout`] solver. There
+//! A first Phase 4 slice adds a one-dimensional flex [`Layout`] solver and an
+//! owned [`View`] description with a paint pass. There
 //! is no application runtime, grid layout, theme implementation, or widget
 //! system here.
 //!
@@ -23,6 +24,7 @@ pub mod lifecycle;
 pub mod output;
 pub mod renderer;
 pub mod style;
+pub mod view;
 
 pub use capabilities::{
     AttrSupport, BackgroundHint, ColorProfile, ColorTier, InputProfile, KeyEncoding, ScreenProfile,
@@ -39,3 +41,4 @@ pub use lifecycle::LifecycleState;
 pub use output::{Ansi16Color, OutputCommand, ResolvedAttributes, ResolvedColor};
 pub use renderer::{Buffer, Cell, Damage, DiffOptions, Renderer, diff, redraw};
 pub use style::SemanticToken;
+pub use view::{BorderStyle, Span, View};

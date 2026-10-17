@@ -113,6 +113,7 @@ instruction stream that crosses the backend seam):
 
 ```bash
 cargo run -p jilva --no-default-features --example render_demo
+cargo run -p jilva --no-default-features --example view_demo
 cargo bench -p jilva --bench render_diff
 ```
 
@@ -198,7 +199,7 @@ move when the work is honestly done.
 | 1 | Foundation | Complete |
 | 2 | Terminal Engine | Implemented and verified |
 | 3 | Rendering Engine | Implemented on branch; RFC-0004 awaiting decision |
-| 4 | Layout & Components | In progress (flex solver slice; RFC-0005 Draft) |
+| 4 | Layout & Components | In progress (flex solver + `View`; RFC-0005/0006 Draft) |
 | 5 | State & Interactivity | Planned |
 | 6 | Design System | Planned |
 | 7 | Alpha Release (`0.1.0`) | Planned |

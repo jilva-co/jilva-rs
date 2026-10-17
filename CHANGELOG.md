@@ -11,6 +11,9 @@ an RFC amendment (see `docs/ARCHITECTURE.md` §3.1).
 
 ### Added
 
+- `View` (RFC-0006 Draft): an owned, geometry-free frame description with text
+  and spans, row/column, overlay, padding and borders; `View::paint` and
+  `Renderer::render` (describe → paint → diff); `view_demo` example.
 - Phase 4 first slice (RFC-0005 Draft): `Layout` flex row/column solver with
   `Constraint`, `Direction`, `Align`, gap, a deterministic remainder rule and a
   never-panic overflow policy; `Rect::{right, bottom, intersection, inner}`.
