@@ -11,6 +11,11 @@ an RFC amendment (see `docs/ARCHITECTURE.md` §3.1).
 
 ### Added
 
+- Colour blending and motion (RFC-0007 Draft): `ResolvedColor::{to_rgb, blend}`,
+  `Buffer::map_attrs`, `View::{gradient, gradient_text, tint}` with `Backdrop`,
+  and `Easing`, `Lerp`, `Transition` (injected time, retargeting, reduced
+  motion); `motion_demo` example. ADR-0004 records the beauty-first product
+  direction.
 - `View` (RFC-0006 Draft): an owned, geometry-free frame description with text
   and spans, row/column, overlay, padding and borders; `View::paint` and
   `Renderer::render` (describe → paint → diff); `view_demo` example.

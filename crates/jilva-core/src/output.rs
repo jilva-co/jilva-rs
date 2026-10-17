@@ -287,6 +287,80 @@ pub enum ResolvedColor {
 }
 
 impl ResolvedColor {
+    /// Returns the approximate sRGB triple of this colour.
+    ///
+    /// [`ResolvedColor::Default`] has no known value (it is whatever the
+    /// terminal theme says), so the caller supplies `default`. The 16 ANSI
+    /// colours use the same table as [`ResolvedColor::downgrade`]; palette
+    /// indices follow the xterm 256-colour layout (16 ANSI, a 6×6×6 cube with
+    /// levels 0/95/135/175/215/255, and a 24-step grey ramp). Real terminals
+    /// let users remap the first 16, so this is an approximation by nature.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use jilva_core::ResolvedColor;
+    ///
+    /// assert_eq!(ResolvedColor::Rgb(1, 2, 3).to_rgb((9, 9, 9)), (1, 2, 3));
+    /// assert_eq!(ResolvedColor::Default.to_rgb((9, 9, 9)), (9, 9, 9));
+    /// assert_eq!(ResolvedColor::Palette(231).to_rgb((0, 0, 0)), (255, 255, 255));
+    /// assert_eq!(ResolvedColor::Palette(232).to_rgb((0, 0, 0)), (8, 8, 8));
+    /// ```
+    #[must_use]
+    pub const fn to_rgb(self, default: (u8, u8, u8)) -> (u8, u8, u8) {
+        const CUBE: [u8; 6] = [0, 95, 135, 175, 215, 255];
+        match self {
+            Self::Default => default,
+            Self::Rgb(r, g, b) => (r, g, b),
+            Self::Ansi16(color) => color.rgb(),
+            Self::Palette(index) => match Ansi16Color::from_index(index) {
+                Some(color) => color.rgb(),
+                None if index >= 232 => {
+                    let level = 8 + 10 * (index - 232);
+                    (level, level, level)
+                }
+                None => {
+                    let cube = index - 16;
+                    (
+                        CUBE[(cube / 36) as usize],
+                        CUBE[((cube / 6) % 6) as usize],
+                        CUBE[(cube % 6) as usize],
+                    )
+                }
+            },
+        }
+    }
+
+    /// Blends `top` over this colour with 8-bit `alpha` (`0` keeps this
+    /// colour, `255` is `top`) and returns the truecolor result.
+    ///
+    /// Integer arithmetic with round-to-nearest, so results are exact and
+    /// identical on every platform. `default` stands in for
+    /// [`ResolvedColor::Default`] (see [`ResolvedColor::to_rgb`]). The result
+    /// is always [`ResolvedColor::Rgb`]; the renderer downgrades it to the
+    /// terminal's tier when the frame is diffed, so blending needs no
+    /// capability knowledge.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use jilva_core::ResolvedColor;
+    ///
+    /// let under = ResolvedColor::Rgb(200, 100, 0);
+    /// assert_eq!(under.blend((0, 0, 0), 0, (0, 0, 0)), ResolvedColor::Rgb(200, 100, 0));
+    /// assert_eq!(under.blend((0, 0, 0), 255, (0, 0, 0)), ResolvedColor::Rgb(0, 0, 0));
+    /// assert_eq!(under.blend((0, 0, 0), 128, (0, 0, 0)), ResolvedColor::Rgb(100, 50, 0));
+    /// ```
+    #[must_use]
+    pub const fn blend(self, top: (u8, u8, u8), alpha: u8, default: (u8, u8, u8)) -> Self {
+        let under = self.to_rgb(default);
+        Self::Rgb(
+            mix_channel(under.0, top.0, alpha),
+            mix_channel(under.1, top.1, alpha),
+            mix_channel(under.2, top.2, alpha),
+        )
+    }
+
     /// Downgrades this colour to what `tier` can represent. Total over all
     /// inputs: never fails, never guesses beyond the documented rules.
     ///
@@ -431,7 +505,7 @@ impl Ansi16Color {
     }
 
     /// Standard RGB triple of this colour (used for nearest-match downgrade).
-    const fn rgb(self) -> (u8, u8, u8) {
+    pub(crate) const fn rgb(self) -> (u8, u8, u8) {
         match self {
             Self::Black => (0, 0, 0),
             Self::Red => (170, 0, 0),
@@ -451,6 +525,12 @@ impl Ansi16Color {
             Self::BrightWhite => (255, 255, 255),
         }
     }
+}
+
+/// `under * (1 - alpha) + top * alpha`, rounded to nearest, in integers.
+pub(crate) const fn mix_channel(under: u8, top: u8, alpha: u8) -> u8 {
+    let alpha = alpha as u32;
+    ((top as u32 * alpha + under as u32 * (255 - alpha) + 127) / 255) as u8
 }
 
 /// Maps an RGB triple onto the 256-colour palette: grayscale ramp when the
@@ -647,6 +727,77 @@ mod tests {
         let mono = attrs.downgraded_to(ColorTier::Mono);
         assert_eq!(mono.fg, ResolvedColor::Default);
         assert!(mono.bold && mono.reverse);
+    }
+
+    #[test]
+    fn to_rgb_follows_the_xterm_layout() {
+        let fallback = (7, 8, 9);
+        assert_eq!(ResolvedColor::Default.to_rgb(fallback), fallback);
+        assert_eq!(ResolvedColor::Rgb(1, 2, 3).to_rgb(fallback), (1, 2, 3));
+        assert_eq!(
+            ResolvedColor::Ansi16(Ansi16Color::Red).to_rgb(fallback),
+            (170, 0, 0)
+        );
+        // Low palette indices agree with the ANSI table.
+        for i in 0..16u8 {
+            let ansi = Ansi16Color::from_index(i).unwrap();
+            assert_eq!(
+                ResolvedColor::Palette(i).to_rgb(fallback),
+                ResolvedColor::Ansi16(ansi).to_rgb(fallback)
+            );
+        }
+        // Cube corners and the grey ramp ends.
+        assert_eq!(ResolvedColor::Palette(16).to_rgb(fallback), (0, 0, 0));
+        assert_eq!(ResolvedColor::Palette(196).to_rgb(fallback), (255, 0, 0));
+        assert_eq!(ResolvedColor::Palette(21).to_rgb(fallback), (0, 0, 255));
+        assert_eq!(
+            ResolvedColor::Palette(231).to_rgb(fallback),
+            (255, 255, 255)
+        );
+        assert_eq!(ResolvedColor::Palette(232).to_rgb(fallback), (8, 8, 8));
+        assert_eq!(
+            ResolvedColor::Palette(255).to_rgb(fallback),
+            (238, 238, 238)
+        );
+    }
+
+    #[test]
+    fn blend_is_exact_at_the_ends_and_symmetric_in_the_middle() {
+        let a = ResolvedColor::Rgb(10, 200, 33);
+        for top in [(0, 0, 0), (255, 255, 255), (1, 2, 3)] {
+            assert_eq!(a.blend(top, 0, (0, 0, 0)), a);
+            assert_eq!(
+                a.blend(top, 255, (0, 0, 0)),
+                ResolvedColor::Rgb(top.0, top.1, top.2)
+            );
+        }
+        // Blending equal colours is the identity at every alpha.
+        for alpha in 0..=255u8 {
+            assert_eq!(
+                ResolvedColor::Rgb(77, 77, 77).blend((77, 77, 77), alpha, (0, 0, 0)),
+                ResolvedColor::Rgb(77, 77, 77)
+            );
+        }
+        // Default blends against the supplied stand-in.
+        assert_eq!(
+            ResolvedColor::Default.blend((255, 255, 255), 255, (0, 0, 0)),
+            ResolvedColor::Rgb(255, 255, 255)
+        );
+        assert_eq!(
+            ResolvedColor::Default.blend((0, 0, 0), 128, (200, 200, 200)),
+            ResolvedColor::Rgb(100, 100, 100)
+        );
+        // Monotone in alpha: more top colour never moves the channel away.
+        let mut last = 255u8;
+        for alpha in 0..=255u8 {
+            let ResolvedColor::Rgb(r, _, _) =
+                ResolvedColor::Rgb(255, 0, 0).blend((0, 0, 0), alpha, (0, 0, 0))
+            else {
+                unreachable!()
+            };
+            assert!(r <= last);
+            last = r;
+        }
     }
 
     #[test]

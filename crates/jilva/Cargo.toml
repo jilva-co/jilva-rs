@@ -43,6 +43,10 @@ path = "../../examples/render_demo.rs"
 name = "view_demo"
 path = "../../examples/view_demo.rs"
 
+[[example]]
+name = "motion_demo"
+path = "../../examples/motion_demo.rs"
+
 [[test]]
 name = "facade_smoke"
 path = "../../tests/facade_smoke.rs"
