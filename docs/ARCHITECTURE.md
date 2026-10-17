@@ -275,6 +275,9 @@ user app  →  jilva  →  jilva-core
 6. **External dependencies are minimal and justified per crate.** Each new
    third-party dependency needs a stated reason in its RFC/PR; the facade adds
    none beyond its two workspace members plus explicitly user-facing opt-ins.
+   `jilva-core` carries `unicode-width` and `unicode-segmentation` (the width
+   and segmentation authorities, RFC-0004 §4), confined to
+   `renderer/width.rs`.
 
 ## 7. Workspace file layout contract
 
@@ -320,9 +323,8 @@ jilva-rs/
         test_double.rs        # in-memory backend for tests (name negotiable)
   examples/                   # one tiny example per concept; facade-only imports
   tests/                      # workspace integration tests (golden-output, no TTY)
-  benches/                    # frame/diff micro-benchmarks (reserved; none in
-                              # Phase 1 — nothing to measure yet; harness
-                              # choice is the implementation agent's)
+  benches/                    # frame/diff micro-benchmarks (std-only, wired via
+                              # [[bench]] in the facade; first: render_diff)
 ```
 
 Conventions: `examples/` and `tests/` import only the `jilva` facade (plus the

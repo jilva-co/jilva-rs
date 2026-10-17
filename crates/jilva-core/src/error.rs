@@ -3,7 +3,7 @@
 //! **Phase-1 status:** the variants below fix the categories the facade will
 //! report (backend I/O, lifecycle, layout, render, user callbacks). Rich
 //! context, backtraces, and per-crate error types are RFC detail; this enum
-//! is the minimal honest starting point with zero third-party dependencies.
+//! is the minimal honest starting point and depends on nothing but `std`.
 //!
 //! Framework operations use this error type through the facade. The low-level
 //! terminal backend deliberately returns [`std::io::Result`] to retain I/O

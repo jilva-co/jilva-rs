@@ -18,10 +18,13 @@ documentation you actually enjoy reading.
 
 > **Status:** Phase 2 — Terminal Engine, implemented and verified. Synchronous
 > Crossterm integration, typed input/output, capability profiles, and a
-> deterministic headless backend are implemented. The framework is unreleased
-> (`0.0.0`); the renderer, application runtime, layout engine, and widgets are
-> future work. See [`docs/PHASE2_TERMINAL_ENGINE.md`](docs/PHASE2_TERMINAL_ENGINE.md)
-> for the supported contract and limitations.
+> deterministic headless backend are implemented. Phase 3 — Rendering Engine
+> (grapheme-aware cell buffer, damage tracking, differential output) is
+> implemented on the `phase3-rendering-engine` branch and awaits review of
+> [RFC-0004](docs/RFC/0004-rendering-engine.md). The framework is unreleased
+> (`0.0.0`); the application runtime, layout engine, and widgets are future
+> work. See [`docs/PHASE2_TERMINAL_ENGINE.md`](docs/PHASE2_TERMINAL_ENGINE.md)
+> for the supported terminal contract and limitations.
 
 Part of [`jilva-co`](https://github.com/jilva-co) — beautiful frameworks for developers.
 
@@ -105,6 +108,14 @@ resize the window, and exit with `q`, Escape, or Ctrl+C:
 cargo run -p jilva --example backend_demo
 ```
 
+See the rendering engine work without a terminal (paint, diff, and the
+instruction stream that crosses the backend seam):
+
+```bash
+cargo run -p jilva --no-default-features --example render_demo
+cargo bench -p jilva --bench render_diff
+```
+
 For CI and redirected output, use the headless example. Disabling default
 features excludes Crossterm and its OS dependencies:
 
@@ -145,8 +156,7 @@ jilva-rs/
                               # the only crate that performs terminal I/O
   examples/                   # one tiny example per concept; facade-only imports
   tests/                      # workspace integration tests (golden-output, no TTY)
-  benches/                    # reserved for future frame/diff micro-benchmarks
-                              # (no benchmarks in Phase 1 — nothing to measure yet)
+  benches/                    # std-only micro-benchmarks (render_diff)
 ```
 
 Conventions: `examples/` and `tests/` import only the `jilva` facade, never
@@ -187,7 +197,7 @@ move when the work is honestly done.
 |---|---|---|
 | 1 | Foundation | Complete |
 | 2 | Terminal Engine | Implemented and verified |
-| 3 | Rendering Engine | Planned |
+| 3 | Rendering Engine | Implemented on branch; RFC-0004 awaiting decision |
 | 4 | Layout & Components | Planned |
 | 5 | State & Interactivity | Planned |
 | 6 | Design System | Planned |

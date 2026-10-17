@@ -76,7 +76,26 @@ Implementer contract: `docs/PHASE2_BACKEND_CONTRACT.md` (normative for
 Phase-2 work; backend selection/crossterm wiring belongs to the
 implementation agent).
 
-## Phase 3 — Rendering Engine (planned)
+## Phase 3 — Rendering Engine (implemented on branch `phase3-rendering-engine`; RFC-0004 Draft)
+
+Implemented in `jilva-core::renderer` per `docs/RFC/0004-rendering-engine.md`;
+not yet merged, and RFC-0004 awaits a maintainer decision.
+
+- [x] Cell buffer model: owned `Buffer`, clipped writes, wide-glyph pairing
+  invariant, empty-vs-styled-blank semantics
+- [x] Grapheme-capable `Cell` replacing `Cell { symbol: char }`, with named
+  width (`unicode-width`, no `cjk`) and segmentation (`unicode-segmentation`)
+  authorities and a truncation rule that never splits a cluster or wide cell
+- [x] Diff/patch: coalesced segments, attribute tracking, cursor-move
+  minimisation with gap bridging, capability-effective equality
+- [x] Damage tracking composed with diffing (`Damage`, wide-glyph widening)
+- [x] Golden-stream tests plus a randomised round-trip property test against a
+  virtual terminal; facade integration tests against the headless backend
+- [x] First benchmark (`benches/render_diff.rs`); numbers in RFC-0004
+- [ ] Maintainer decision on RFC-0004; CI observation on all three platforms;
+  real-terminal visual validation (headless tests are not visual validation)
+
+Original scope, for reference:
 
 Cell buffering, diffing, and damage tracking (`docs/ARCHITECTURE.md` §3.7;
 considerations §8.1, §8.2, §8.10, §8.11).
@@ -92,10 +111,11 @@ considerations §8.1, §8.2, §8.10, §8.11).
 
 Exit criterion: golden-output tests (frame in → expected instruction stream
 out) cover the buffer/diff/damage behaviour; performance posture is
-quantified by RFC and benches, not adjectives.
+quantified by RFC and benches, not adjectives. — Implemented; pending the
+maintainer decision and CI evidence listed above.
 
 Phase-3 exit obligation (tracked, from RFC-1 Unicode row + Phase-1.7
-audit): the provisional `Cell { symbol: char }` model MUST be replaced by
+audit; discharged by RFC-0004 §3–§4 on the Phase-3 branch): the provisional `Cell { symbol: char }` model MUST be replaced by
 the grapheme-capable symbol type + width/segmentation authorities no later
 than this phase — golden tests must not entrench a `char`-shaped API
 (RFC-2 §8 dependency, RFC-1 OQ12).

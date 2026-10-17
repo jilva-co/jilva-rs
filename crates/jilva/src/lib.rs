@@ -1,9 +1,12 @@
 //! Public facade for `jilva-rs`: the only crate users depend on directly.
 //!
 //! Phase 2 exposes synchronous terminal sessions, typed input and output,
-//! capability snapshots, and a deterministic headless backend. This facade
-//! contains re-exports and documentation; the application runtime, renderer,
-//! layout solver, and widgets belong to later milestones.
+//! capability snapshots, and a deterministic headless backend. Phase 3 adds
+//! the rendering engine: a grapheme-aware cell [`Buffer`], damage tracking,
+//! and a pure [`diff`] / [`Renderer`] that produce backend instruction
+//! streams. This facade contains re-exports and documentation; the
+//! application runtime, layout solver, and widgets belong to later
+//! milestones.
 //!
 //! The default `crossterm` feature provides the real terminal backend.
 //! Disable default features for a terminal-library-free headless build.
@@ -24,7 +27,10 @@ pub use jilva_core::events::{MouseButton, MouseEvent, MouseKind, SpecialKey};
 pub use jilva_core::layout::Rect;
 pub use jilva_core::lifecycle::LifecycleState;
 pub use jilva_core::output::{Ansi16Color, OutputCommand, ResolvedAttributes, ResolvedColor};
-pub use jilva_core::renderer::Cell;
+pub use jilva_core::renderer::{
+    Buffer, Cell, Damage, DiffOptions, Renderer, cluster_width, diff, graphemes, redraw,
+    text_width, truncate_to_width,
+};
 pub use jilva_core::style::SemanticToken;
 pub use jilva_core::{
     AttrSupport, BackgroundHint, ColorProfile, ColorTier, InputProfile, KeyEncoding, ScreenProfile,

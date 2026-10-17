@@ -35,6 +35,10 @@ required-features = ["crossterm"]
 name = "headless_demo"
 path = "../../examples/headless_demo.rs"
 
+[[example]]
+name = "render_demo"
+path = "../../examples/render_demo.rs"
+
 [[test]]
 name = "facade_smoke"
 path = "../../tests/facade_smoke.rs"
@@ -46,3 +50,14 @@ path = "../../tests/backend_session.rs"
 [[test]]
 name = "backend_io"
 path = "../../tests/backend_io.rs"
+
+[[test]]
+name = "render_pipeline"
+path = "../../tests/render_pipeline.rs"
+
+# Std-only micro-benchmarks (facade imports only); `harness = false` keeps the
+# workspace free of a benchmarking dependency.
+[[bench]]
+name = "render_diff"
+path = "../../benches/render_diff.rs"
+harness = false

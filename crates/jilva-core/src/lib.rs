@@ -1,9 +1,11 @@
 //! Framework foundations for `jilva-rs`.
 //!
-//! Phase 2 adds typed terminal events, resolved output instructions,
-//! capability profiles, and pure validation/versioning helpers to the
-//! foundation types. There is no application runtime, rendering engine,
-//! layout solver, theme implementation, or widget system here.
+//! Phase 2 added typed terminal events, resolved output instructions,
+//! capability profiles, and pure validation/versioning helpers. Phase 3 adds
+//! the rendering engine: a grapheme-aware cell [`Buffer`], damage tracking,
+//! and a pure [`diff`] that turns two buffers into an instruction stream.
+//! There is no application runtime, layout solver, theme implementation, or
+//! widget system here.
 //!
 //! Platform-agnostic: this crate performs no terminal I/O and names no
 //! backend. See `docs/ARCHITECTURE.md` §3 and §6 for the boundary contract.
@@ -34,5 +36,5 @@ pub use events::{
 pub use layout::Rect;
 pub use lifecycle::LifecycleState;
 pub use output::{Ansi16Color, OutputCommand, ResolvedAttributes, ResolvedColor};
-pub use renderer::Cell;
+pub use renderer::{Buffer, Cell, Damage, DiffOptions, Renderer, diff, redraw};
 pub use style::SemanticToken;
