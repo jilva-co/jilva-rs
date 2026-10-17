@@ -7,8 +7,8 @@
 //! The test backend uses no OS terminal and has no injected failures here.
 
 use jilva::{
-    Backend, Cell, ComponentId, Error, Event, LifecycleState, Rect, SemanticToken,
-    TerminalCapabilities, TestDoubleBackend,
+    Backend, Cell, ComponentId, Error, Event, LifecycleState, Rect, ResolvedAttributes,
+    SemanticToken, TerminalCapabilities, TestDoubleBackend,
 };
 
 #[test]
@@ -64,5 +64,7 @@ fn facade_identity_style_and_cell_basics() {
     assert_eq!(ComponentId::new(3).get(), 3);
     assert_eq!(SemanticToken::Danger.as_str(), "danger");
     assert!(Cell::blank().is_blank());
-    assert!(!Cell::new('#').is_blank());
+    let hash = Cell::from_char('#', ResolvedAttributes::plain()).expect("renderable");
+    assert!(!hash.is_blank());
+    assert_eq!(hash.symbol(), "#");
 }

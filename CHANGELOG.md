@@ -11,6 +11,15 @@ an RFC amendment (see `docs/ARCHITECTURE.md` §3.1).
 
 ### Added
 
+- Phase 3 rendering engine (`jilva-core::renderer`, RFC-0004 Draft): a
+  grapheme-cluster `Cell`, a bounds-disciplined `Buffer` that keeps
+  double-width glyphs whole, damage tracking (`Damage`), a pure `diff` /
+  `redraw` producing `OutputCommand` streams (coalescing, attribute tracking,
+  cursor minimisation, capability-effective equality), and a double-buffered
+  `Renderer`. Width and segmentation use `unicode-width` (no `cjk`) and
+  `unicode-segmentation`. Facade re-exports, `render_demo` example, golden and
+  round-trip property tests, and a std-only diff benchmark.
+
 - Phase 2 synchronous terminal engine: optional Crossterm backend, tracked
   session cleanup, typed input/output, capability snapshots, and deterministic
   headless failure injection. The public facade exposes the backend contract.
@@ -26,3 +35,11 @@ an RFC amendment (see `docs/ARCHITECTURE.md` §3.1).
 - Rewritten project README with status, philosophy, contributor commands, repo
   structure, and architecture overview.
 - Workspace contribution rules and everyday `cargo` commands (`CONTRIBUTING.md`).
+
+### Changed
+
+- **Breaking (pre-release):** `Cell` is no longer `{ symbol: char }`.
+  `Cell::new(char)` is replaced by `Cell::try_new(&str, attrs)` /
+  `Cell::from_char(char, attrs)`; the symbol is read with `Cell::symbol()`.
+  `jilva-core` gains two third-party dependencies (`unicode-width`,
+  `unicode-segmentation`; no transitive dependencies).

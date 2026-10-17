@@ -7,5 +7,14 @@ license.workspace = true
 repository.workspace = true
 description = "Terminal-independent events, capabilities, output data, and framework foundations for Jilva"
 
+[dependencies]
+# Phase-3 renderer authorities (docs/RFC/0004-rendering-engine.md §4).
+# `unicode-width` decides how many terminal cells a grapheme occupies;
+# `unicode-segmentation` decides where graphemes begin and end. Both are
+# pure data-table crates: no I/O and no transitive dependencies. `unicode-width` runs without its `cjk` feature, so
+# East-Asian-Ambiguous characters are one cell wide.
+unicode-width = { version = "0.2.2", default-features = false }
+unicode-segmentation = "1.13.3"
+
 [lints]
 workspace = true

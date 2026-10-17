@@ -20,8 +20,9 @@ use std::io;
 
 /// Instruction vocabulary the backend executes, in order.
 ///
-/// Additive-only evolution: the renderer RFC extends this enum with new
-/// variants in Phase 3; existing variants never change shape.
+/// Additive-only evolution: new variants may be added (RFC-0004 lists
+/// run-length compression as an open question); existing variants never
+/// change shape. The Phase-3 renderer needed none.
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum OutputCommand {
