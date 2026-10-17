@@ -14,7 +14,7 @@
 //! batch before buffering it, so untrusted text cannot inject terminal
 //! controls through directly constructed commands.
 
-use crate::capabilities::ColorTier;
+use crate::capabilities::{ColorProfile, ColorTier};
 use crate::layout::Rect;
 use std::io;
 
@@ -268,6 +268,27 @@ impl ResolvedAttributes {
             reverse: self.reverse,
             strikethrough: self.strikethrough,
         }
+    }
+
+    /// Resolves colours and decorations against a colour profile.
+    ///
+    /// Mono suppresses decorative attributes even if an override claims them;
+    /// reverse video is structural and remains gated by support.
+    #[must_use]
+    pub const fn for_profile(self, profile: &ColorProfile) -> Self {
+        let support = if profile.color.is_mono() {
+            profile.attrs.stripped_for_no_color()
+        } else {
+            profile.attrs
+        };
+        let mut out = self.downgraded_to(profile.color);
+        out.bold &= support.bold;
+        out.dim &= support.dim;
+        out.italic &= support.italic;
+        out.underline &= support.underline;
+        out.reverse &= support.reverse;
+        out.strikethrough &= support.strikethrough;
+        out
     }
 }
 

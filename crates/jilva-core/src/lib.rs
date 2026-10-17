@@ -4,7 +4,8 @@
 //! pure [`diff`], flex [`Layout`], and owned [`View`] descriptions.
 //! [`Model`] and the sans-IO [`App`] runtime run through [`Driven`];
 //! [`Component`]s have framework-owned slots, identity, and focus.
-//! Grid, themes, and a widget library are planned.
+//! Semantic [`Theme`] palettes resolve roles and states across terminal tiers.
+//! Grid and a widget library are planned.
 //!
 //! Platform-agnostic: this crate performs no terminal I/O and names no
 //! backend. See `docs/README.md#architecture` for the boundary contract.
@@ -39,5 +40,5 @@ pub use lifecycle::{App, Context, Driven, Effects, LifecycleState, Model};
 pub use motion::{Easing, Lerp, Transition};
 pub use output::{Ansi16Color, OutputCommand, ResolvedAttributes, ResolvedColor};
 pub use renderer::{Buffer, Cell, Damage, DiffOptions, Renderer, diff, redraw};
-pub use style::SemanticToken;
+pub use style::{ResolvedStyle, ResolvedTheme, SemanticToken, StyleState, Theme};
 pub use view::{Backdrop, BorderStyle, Span, View};

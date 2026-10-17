@@ -1,6 +1,6 @@
 # Jilva project guide
 
-Reviewed **2026-10-17** against `43f285a`. This is the single maintained
+Updated **2026-10-17** for the semantic-theme implementation. This is the single maintained
 design and planning document. [Quick start](../README.md#try-it) ·
 [Architecture](#architecture) · [Comparison](#framework-comparison) ·
 [Plan](#development-plan) · [Decisions](#design-decisions).
@@ -14,7 +14,7 @@ design and planning document. [Quick start](../README.md#try-it) ·
 | [Layout and views](../crates/jilva-core/src/view.rs) | Flex rows/columns, constraints, spans, overlays, padding, borders, gradients | Intrinsic measurement, wrapping, scrolling, grid |
 | [Runtime](../crates/jilva-core/src/lifecycle/app.rs) | `Model`, `App`, FIFO follow-ups, ignored-event fast path, injected time | External message ingress, timer events, animation wakeups, cancellation |
 | [Components](../crates/jilva-core/src/component.rs) | Framework-owned slots, keys, cleanup, Tab focus, bubbling | Parent messages, focus events/scopes, mouse hit-testing; configurations are boxed per description |
-| [Style](../crates/jilva-core/src/style.rs) | Four placeholder semantic tokens; resolved RGB/ANSI/mono output | Full token schema, theme resolver, curated themes, state overlays |
+| [Style](../crates/jilva-core/src/style.rs) | 14 semantic roles, dark/light themes, partial overrides, extensions, composed states, cached tier resolution, runtime switching | Configurable overlay definitions, theme-file adapters |
 | [Motion](../crates/jilva-core/src/motion.rs) | Easing, retargetable transitions, injected time, reduced-motion sampling | Runtime scheduling and theme/component integration |
 
 The counter examples prove the runtime, not a complete widget toolkit.
@@ -97,17 +97,36 @@ a lower-level caller; sparse terminal output alone does not prove cheap updates.
 
 ### Theming contract
 
-The accepted design specifies 14 roles: Background, Surface, Overlay, Border,
+The implementation provides 14 roles: Background, Surface, Overlay, Border,
 Text, Muted, Accent, Success, Warning, Danger, Info, Selection, Cursor, Highlight.
-It specifies two built-ins (`jilva-dark`, `jilva-light`) with automatic mono
+Two built-ins (`jilva-dark`, `jilva-light`) have automatic mono
 resolution. App deltas override a base, with dark filling missing tokens.
 Merge tokens first, apply state overlays, then degrade to terminal capabilities.
 Overlay order is Hovered < Active < Focused < Selected; Disabled overrides all.
 Focus/selection must remain distinguishable without colour. Missing extension
 tokens fall back to Text with a debug marker. Theme switches invalidate paint,
-not geometry; merge and quantization caches have separate version keys.
-These are design commitments, not implemented APIs; the four-token placeholder
-and the accepted vocabulary must be reconciled explicitly in the next PR.
+not geometry. Merged palettes and resolved caches are separate values: the app's
+theme revision changes only for a different palette; input, time, and resize
+reuse resolution. Use `App::with_theme`, `Context::style/style_with`, and
+`Effects::set_theme`. Requests commit after successful update/follow-up dispatch,
+last request wins; a repeated palette needs no repaint. Raw `View::text` remains
+terminal-default text; pass semantic attributes to styled text, spans, and borders.
+Missing extensions return Text plus an explicit `missing_extension` diagnostic.
+Disabled is visual state, so widgets must still reject disabled interaction.
+Mono retains supported reverse video; widgets need structural markers for
+independent focus/selection indications. The gallery uses a heavy border and `>`.
+
+`SemanticToken::Selected` retains its original name and resolves as Selection.
+Migration: `Context` is now cheaply `Clone` rather than `Copy`, sharing the
+resolved cache; use `.clone()` when retaining a context. Its `new` and
+`with_focused` are no longer const; the latter borrows the source context.
+The initial overlays have fixed transforms; configurable transforms remain
+follow-up work. [Theming tests](../tests/theming.rs) cover switching/state/focus
+and all terminal tiers. `themes --headless` exercises the gallery without a TTY.
+The value-based overrides and role vocabulary take cues from
+[Cursive palettes](https://docs.rs/cursive/latest/cursive/theme/index.html) and
+[Textual theme variables](https://textual.textualize.io/guide/design/);
+this implementation keeps resolution pure and adds no parser dependency.
 
 ## Framework comparison
 
@@ -143,7 +162,7 @@ Rust alpha. General TUIs remain supported; the streaming demo sets priorities.
 ## Development plan
 
 Each milestone is a small sequence of reviewable PRs, in dependency order.
-All items below are **planned**; completing foundations does not complete them.
+Milestone 1 is implemented; milestones 2–7 remain planned.
 
 | Order | Deliverable and code area | Acceptance gate |
 | --- | --- | --- |
@@ -155,7 +174,8 @@ All items below are **planned**; completing foundations does not complete them.
 | 6 | Opt-in recording/replay adapter and regression helper | Versioned initial state fixture + capabilities, dimensions, theme, width-policy/build identity, time, ordered input/messages/completions; replay runs no live effects; two replays match frames; report first mismatching event/cell |
 | 7 | Alpha completion, measured performance, external use | Text/list/table/input/tabs/status bar and accepted grid scope; tested examples/package; platform/terminal evidence; two independently written downstream apps; migration notes and declared MSRV policy |
 
-Start with milestone 1. Introduce a tiny scripted streaming example after
+Next: milestone 2, bounded external messages and scheduled wakeups.
+Introduce a tiny scripted streaming example after
 milestone 3, then grow it through 4–6; do not wait for a complete widget gallery.
 Parent-message routing and focus scopes belong with interactive widgets;
 explicitly design them before approval dialogs. Generic grid and additional
@@ -208,11 +228,12 @@ Keep checks in [CONTRIBUTING.md](../CONTRIBUTING.md) and API examples in rustdoc
 | --- | --- | --- |
 | RFC-0001 | Accepted, recorded 2026-10-16; revalidated 2026-10-17 | Rust alpha scope includes runtime, flex/grid, themes, essential widgets |
 | RFC-0002 | Accepted, same dates | Hybrid model, framework slots, explicit identity, pure descriptions, synchronous core |
-| RFC-0003 | Accepted, same dates | Semantic theme schema and capability fallbacks; implementation pending |
+| RFC-0003 | Accepted, same dates | Theme roles, palettes, overlays, fallbacks, and switching implemented; configurable transforms remain |
 | RFC-0004–0007 | Draft | Rendering, flex, views, motion implemented; implementation is not design acceptance |
 | RFC-0008 | Draft | Runtime/components implemented in slices; default cleanup and other amendments still need recorded decisions |
 | ADR-0001–0004 | Accepted records retained | Rust first, three crates, Crossterm seam; agent/streaming CLIs with beauty and reproducibility |
 | This plan | Proposed, 2026-10-17 | Priorities and gates above; no new feature acceptance implied |
+| Theme integration | Implemented, review pending, 2026-10-17 | Preserve Selected alias; Context shares a resolved cache via Clone; fixed default transforms; no new dependencies |
 
 Keep future proposals in PR descriptions: problem, contract, alternatives,
 tests, and unresolved items with owners. Record dated maintainer decisions

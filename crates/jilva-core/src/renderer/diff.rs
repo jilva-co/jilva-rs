@@ -421,15 +421,7 @@ pub(super) fn effective(
     attrs: &ResolvedAttributes,
     caps: &TerminalCapabilities,
 ) -> ResolvedAttributes {
-    let support = caps.color.attrs;
-    let mut out = attrs.downgraded_to(caps.color.color);
-    out.bold &= support.bold;
-    out.dim &= support.dim;
-    out.italic &= support.italic;
-    out.underline &= support.underline;
-    out.reverse &= support.reverse;
-    out.strikethrough &= support.strikethrough;
-    out
+    attrs.for_profile(&caps.color)
 }
 
 /// Accumulates commands, tracking the cursor and the attributes the terminal

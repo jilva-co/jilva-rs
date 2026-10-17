@@ -11,6 +11,10 @@ a design amendment (see [design decisions](docs/README.md#design-decisions)).
 
 ### Changed
 
+- Theme integration: `Context` is now `Clone` instead of `Copy`; `new` and
+  `with_focused` are no longer const. Use `.clone()` to retain a context.
+- Mono profile resolution suppresses decorative flags even when an explicit
+  capability override claims them; supported structural reverse remains.
 - Consolidated design, roadmap, research, audits, and experiment notes into
   `docs/README.md`; shortened setup/community docs, corrected implementation
   status, and added a sourced comparison and measurable development plan.
@@ -22,6 +26,11 @@ a design amendment (see [design decisions](docs/README.md#design-decisions)).
 
 ### Added
 
+- Semantic themes: 14 canonical roles (original `Selected` spelling preserved),
+  `Theme::{dark,light}`, partial overrides/extensions, `StyleState` overlays,
+  shared `ResolvedTheme` caches, `Context::{style,style_with}`,
+  `App::with_theme`, and model/component `Effects::set_theme`.
+  `themes` gallery with a headless mode and cross-tier regression tests.
 - Components, RFC-0008 slice B (Draft): the `Component` trait (required
   `init`, `update`, `view`; defaulted `cleanup` and `focusable`),
   `View::component`, `View::key` and `Key`. The runtime gives each mounted

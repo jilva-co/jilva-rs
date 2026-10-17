@@ -8,8 +8,8 @@ A Rust TUI framework for streaming CLIs, with an explicit update/view loop,
 reusable components, and terminal-independent rendering.
 
 **Unreleased (`0.0.0`).** The terminal backend, renderer, flex layout, app
-runtime, and first component slice work. Themes, ready-made widgets, inline
-scrollback, external streaming sources, and session recording are planned.
+runtime, components, and semantic dark/light themes work. Ready-made widgets,
+inline scrollback, external streaming sources, and session recording are planned.
 
 **[Project guide and development plan](docs/README.md)** — current capabilities,
 architecture, framework comparison, milestones, and design decisions in one file.
@@ -31,13 +31,18 @@ For two components with independent state and Tab / Shift+Tab focus:
 
 ```sh
 cargo run -p jilva --example counters --locked
+cargo run -p jilva --example themes --locked
 ```
+
+In the theme gallery, `t` switches dark/light; Tab and `+` / `-` exercise
+component focus and state. Styles use semantic roles rather than RGB in app code.
 
 For CI or a shell without an interactive terminal:
 
 ```sh
 cargo run -p jilva --no-default-features --example headless_demo --locked
 cargo run -p jilva --no-default-features --example view_demo --locked
+cargo run -p jilva --no-default-features --example themes --locked -- --headless
 ```
 
 The default `crossterm` feature supplies the real terminal backend. Disabling
