@@ -7,9 +7,10 @@
 //! streams, and a flex [`Layout`] that splits a [`Rect`] into regions. The
 //! runtime slice (RFC-0008 Draft) adds the [`Model`] trait, the sans-IO
 //! [`App`] runtime, and [`run_with`] (plus `run` with the default
-//! `crossterm` feature) to drive it. This facade contains re-exports and
-//! documentation; components, grid layout, and widgets belong to later
-//! milestones.
+//! `crossterm` feature) to drive it; [`Component`]s placed with
+//! [`View::component`] get framework-owned state, focus and Tab traversal.
+//! This facade contains re-exports and documentation; grid layout and
+//! widgets belong to later milestones.
 //!
 //! # A whole app
 //!
@@ -60,7 +61,7 @@
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
 
-pub use jilva_core::component::ComponentId;
+pub use jilva_core::component::{Component, ComponentId, Key};
 pub use jilva_core::error::{Error, Result};
 pub use jilva_core::events::{
     Change, Event, InputEvent, KeyCode, KeyEvent, KeyEventKind, KeyModifiers, Outcome,

@@ -11,9 +11,10 @@ use std::time::Duration;
 
 use crate::capabilities::TerminalCapabilities;
 use crate::error::{Error, Result};
-use crate::events::{Change, Event, InputEvent, KeyEventKind, Outcome};
+use crate::events::{Change, Event, InputEvent, KeyEvent, KeyEventKind, Outcome, SpecialKey};
 use crate::layout::Rect;
 use crate::lifecycle::LifecycleState;
+use crate::lifecycle::tree::Tree;
 use crate::output::OutputCommand;
 use crate::renderer::Renderer;
 use crate::view::View;
@@ -155,8 +156,31 @@ impl<M> Effects<M> {
     }
 
     /// Takes the oldest queued message.
-    fn next_message(&mut self) -> Option<M> {
+    pub(crate) fn next_message(&mut self) -> Option<M> {
         self.messages.pop_front()
+    }
+}
+
+/// Counts follow-up messages across one source event — model and components
+/// together — so a runaway chain reports [`Error::UpdateOverflow`] instead
+/// of hanging (RFC-2 §1 rule 4).
+pub(crate) struct FollowUps {
+    used: usize,
+    limit: usize,
+}
+
+impl FollowUps {
+    pub(crate) const fn new(limit: usize) -> Self {
+        Self { used: 0, limit }
+    }
+
+    /// Accounts for one more follow-up, or fails past the limit.
+    pub(crate) fn take(&mut self) -> Result<()> {
+        if self.used >= self.limit {
+            return Err(Error::UpdateOverflow { limit: self.limit });
+        }
+        self.used += 1;
+        Ok(())
     }
 }
 
@@ -166,8 +190,9 @@ impl<M> Default for Effects<M> {
     }
 }
 
-/// Read-only input to [`Model::view`]: screen size, capabilities, and the
-/// injected time.
+/// Read-only input to [`Model::view`] and
+/// [`Component::view`](crate::Component::view): screen size, capabilities,
+/// the injected time, and whether the component being described has focus.
 ///
 /// # Example
 ///
@@ -184,6 +209,7 @@ pub struct Context {
     size: (u16, u16),
     capabilities: TerminalCapabilities,
     now: Duration,
+    focused: bool,
 }
 
 impl Context {
@@ -195,7 +221,23 @@ impl Context {
             size,
             capabilities,
             now,
+            focused: false,
         }
+    }
+
+    /// The same context, marked focused or not. The runtime uses it for each
+    /// component; component tests use it to describe a focused component.
+    #[must_use]
+    pub const fn with_focused(mut self, focused: bool) -> Self {
+        self.focused = focused;
+        self
+    }
+
+    /// Whether the component being described has keyboard focus. Always
+    /// `false` for the model's own view.
+    #[must_use]
+    pub const fn is_focused(&self) -> bool {
+        self.focused
     }
 
     /// Screen size in cells (columns, rows).
@@ -263,14 +305,21 @@ struct Session {
 
 /// The sans-IO runtime around a [`Model`].
 ///
-/// Implements RFC-2 §1 for the app root: one source event → one update →
-/// FIFO follow-ups → at most one `view` and one diff. Defaults: key releases
-/// are dropped, Ctrl+C quits when the model ignores it, a resize always
-/// repaints at the new size. See [`Model`] for a complete example.
+/// Implements RFC-2 §1: one source event → updates along its dispatch path
+/// → FIFO follow-ups → at most one `view` and one diff. Components placed in
+/// the model's view get framework-owned state slots; keys go to the focused
+/// component, then its ancestors, then the model; resizes go to the model
+/// and then every component.
+///
+/// Defaults when nothing consumed an event: Ctrl+C quits, Tab / Shift+Tab
+/// move focus between focusable components. Key releases are dropped, and a
+/// resize always repaints at the new size. See [`Model`] and
+/// [`Component`](crate::Component) for complete examples.
 pub struct App<M: Model> {
     model: M,
     state: LifecycleState,
     session: Option<Session>,
+    tree: Tree,
     /// Last painted view and its context, for the debug under-report check.
     #[cfg(debug_assertions)]
     last_frame: Option<(View, Context)>,
@@ -283,11 +332,12 @@ impl<M: Model> App<M> {
 
     /// Wraps a model. Nothing runs until [`Driven::start`].
     #[must_use]
-    pub const fn new(model: M) -> Self {
+    pub fn new(model: M) -> Self {
         Self {
             model,
             state: LifecycleState::Setup,
             session: None,
+            tree: Tree::default(),
             #[cfg(debug_assertions)]
             last_frame: None,
         }
@@ -311,42 +361,44 @@ impl<M: Model> App<M> {
         self.state
     }
 
-    /// Runs one update plus its follow-ups and returns the batch's change
-    /// class and whether it asked to quit.
-    fn dispatch(&mut self, event: Event<M::Message>, ctrl_c: bool) -> Result<(Change, bool)> {
+    /// Runs one model update plus its follow-ups: the original event's
+    /// outcome, the batch's change class, and whether it asked to quit.
+    fn update_model(
+        &mut self,
+        event: Event<M::Message>,
+        budget: &mut FollowUps,
+    ) -> Result<(Outcome, Change, bool)> {
         let mut effects = Effects::new();
         let outcome = self.model.update(event, &mut effects)?;
-        if ctrl_c && outcome == Outcome::Ignored {
-            effects.quit();
-        }
         let mut change = outcome.change();
-        let mut follow_ups = 0;
         while let Some(message) = effects.next_message() {
-            follow_ups += 1;
-            if follow_ups > Self::FOLLOW_UP_LIMIT {
-                return Err(Error::UpdateOverflow {
-                    limit: Self::FOLLOW_UP_LIMIT,
-                });
-            }
-            let outcome = self.model.update(Event::Message(message), &mut effects)?;
-            change = change.max(outcome.change());
+            budget.take()?;
+            let follow_up = self.model.update(Event::Message(message), &mut effects)?;
+            change = change.max(follow_up.change());
         }
-        Ok((change, effects.quit_requested()))
+        Ok((outcome, change, effects.quit_requested()))
     }
 
-    /// Describes and paints one frame; on success records it for the debug
-    /// check.
+    /// Describes, expands components, and paints one frame; on success
+    /// records the model's description for the debug check.
     fn paint(&mut self) -> Result<Vec<OutputCommand>> {
         let Some(session) = self.session.as_mut() else {
             return Err(Error::Lifecycle("App has no session to paint".to_string()));
         };
-        let view = self.model.view(&session.context)?;
-        let frame = session
-            .renderer
-            .render(&view, &session.context.capabilities);
+        let context = session.context;
+        let view = self.model.view(&context)?;
+        #[cfg(debug_assertions)]
+        let described = view.clone();
+        let mut expanded = self.tree.expand(view, &context)?;
+        if self.tree.settle_focus() {
+            // Mounting or unmounting moved focus: describe once more so each
+            // component sees the right `is_focused`.
+            expanded = self.tree.expand(self.model.view(&context)?, &context)?;
+        }
+        let frame = session.renderer.render(&expanded, &context.capabilities);
         #[cfg(debug_assertions)]
         {
-            self.last_frame = Some((view, session.context));
+            self.last_frame = Some((described, context));
         }
         Ok(frame)
     }
@@ -368,6 +420,15 @@ impl<M: Model> App<M> {
             );
         }
     }
+}
+
+/// Tab moves focus forward; Shift+Tab (or a reported BackTab) moves it back.
+fn focus_direction(key: &KeyEvent) -> Option<bool> {
+    if key.is_special(SpecialKey::BackTab) {
+        return Some(false);
+    }
+    key.is_special(SpecialKey::Tab)
+        .then_some(!key.modifiers.shift)
 }
 
 impl<M: Model> fmt::Debug for App<M> {
@@ -428,20 +489,67 @@ impl<M: Model> Driven for App<M> {
             return Err(Error::Lifecycle("running App has no session".to_string()));
         };
         session.context.now = now;
-        let mut forced = Change::None;
+        let mut change = Change::None;
         if let InputEvent::Resize { cols, rows } = input {
             session.renderer.resize(cols, rows);
             session.context.size = (cols, rows);
-            forced = Change::Layout;
+            change = Change::Layout;
         }
-        let ctrl_c = matches!(&input, InputEvent::Key(key) if key.is_ctrl("c"));
+        let context = session.context;
+        let mut budget = FollowUps::new(Self::FOLLOW_UP_LIMIT);
 
-        let (change, quit) = self.dispatch(Event::from(input), ctrl_c)?;
+        let (consumed, routed_change, mut quit) = match &input {
+            InputEvent::Resize { .. } => {
+                // Parents before children: the model, then every component.
+                let (_, model_change, model_quit) =
+                    self.update_model(Event::from(input.clone()), &mut budget)?;
+                let broadcast = self.tree.broadcast(&input, &context, &mut budget)?;
+                (
+                    true,
+                    model_change.max(broadcast.change),
+                    model_quit || broadcast.quit,
+                )
+            }
+            InputEvent::Key(_) | InputEvent::Paste(_) => {
+                // Focused component, its ancestors, then the model.
+                let routed = self.tree.dispatch_focused(&input, &context, &mut budget)?;
+                if routed.consumed {
+                    (true, routed.change, routed.quit)
+                } else {
+                    let (outcome, model_change, model_quit) =
+                        self.update_model(Event::from(input.clone()), &mut budget)?;
+                    (
+                        outcome.is_consumed(),
+                        routed.change.max(model_change),
+                        routed.quit || model_quit,
+                    )
+                }
+            }
+            InputEvent::Mouse(_) | InputEvent::Focus(_) => {
+                // No hit-testing yet: mouse and terminal focus go to the model.
+                let (outcome, model_change, model_quit) =
+                    self.update_model(Event::from(input.clone()), &mut budget)?;
+                (outcome.is_consumed(), model_change, model_quit)
+            }
+        };
+        change = change.max(routed_change);
+        if !consumed
+            && !quit
+            && let InputEvent::Key(key) = &input
+        {
+            if key.is_ctrl("c") {
+                quit = true;
+            } else if let Some(forward) = focus_direction(key)
+                && self.tree.move_focus(forward)
+            {
+                change = change.max(Change::Repaint);
+            }
+        }
         if quit {
             self.state = LifecycleState::Shutdown;
             return Ok(Vec::new());
         }
-        if forced.max(change) == Change::None {
+        if change == Change::None {
             #[cfg(debug_assertions)]
             self.check_unchanged();
             return Ok(Vec::new());
@@ -769,5 +877,550 @@ mod tests {
         assert_eq!(effects.pending(), 2);
         assert_eq!(effects.next_message(), Some(Msg::Add(1)));
         assert!(!effects.quit_requested());
+    }
+}
+
+/// Slice B: components, slots, identity, focus and dispatch through `App`.
+#[cfg(test)]
+mod component_tests {
+    use super::*;
+    use crate::component::Component;
+    use crate::events::KeyModifiers;
+    use crate::layout::Constraint;
+    use crate::{KeyEncoding, MouseButton, MouseEvent, MouseKind};
+    use std::cell::RefCell;
+
+    thread_local! {
+        /// Labels of components whose `cleanup` ran, in order.
+        static CLEANED: RefCell<Vec<String>> = const { RefCell::new(Vec::new()) };
+    }
+
+    fn cleaned() -> Vec<String> {
+        CLEANED.with(|cleaned| cleaned.borrow().clone())
+    }
+
+    /// `+`/`-` count, `s` sends itself a follow-up, `x` quits the app.
+    /// Label `boom` fails in `view`, `noinit` fails in `init`.
+    #[derive(Debug, Clone, PartialEq)]
+    struct Counter(&'static str);
+
+    #[derive(Debug)]
+    enum CounterMsg {
+        AddFive,
+    }
+
+    impl Component for Counter {
+        type State = i64;
+        type Message = CounterMsg;
+
+        fn init(&self) -> Result<i64> {
+            if self.0 == "noinit" {
+                return Err(Error::Callback("init refused".to_string()));
+            }
+            Ok(0)
+        }
+
+        fn update(
+            &self,
+            count: &mut i64,
+            event: Event<CounterMsg>,
+            effects: &mut Effects<CounterMsg>,
+        ) -> Result<Outcome> {
+            if let Event::Message(CounterMsg::AddFive) = event {
+                *count += 5;
+                return Ok(Outcome::repaint());
+            }
+            match event.key_text() {
+                Some("+") => *count += 1,
+                Some("-") => *count -= 1,
+                Some("s") => effects.send(CounterMsg::AddFive),
+                Some("x") => effects.quit(),
+                _ => return Ok(Outcome::Ignored),
+            }
+            Ok(Outcome::repaint())
+        }
+
+        fn view(&self, count: &i64, cx: &Context) -> Result<View> {
+            if self.0 == "boom" {
+                return Err(Error::Render("boom".to_string()));
+            }
+            let mark = if cx.is_focused() { "*" } else { "" };
+            Ok(View::text(&format!("{mark}{}:{count}", self.0)))
+        }
+
+        fn cleanup(&self, _count: i64) {
+            CLEANED.with(|cleaned| cleaned.borrow_mut().push(self.0.to_string()));
+        }
+
+        fn focusable(&self) -> bool {
+            true
+        }
+    }
+
+    /// A non-focusable parent that counts `g` presses and holds counters.
+    #[derive(Debug, Clone, PartialEq)]
+    struct Group(Vec<&'static str>);
+
+    impl Component for Group {
+        type State = u32;
+        type Message = ();
+
+        fn init(&self) -> Result<u32> {
+            Ok(0)
+        }
+
+        fn update(
+            &self,
+            presses: &mut u32,
+            event: Event,
+            _effects: &mut Effects,
+        ) -> Result<Outcome> {
+            if event.key_text() != Some("g") {
+                return Ok(Outcome::Ignored);
+            }
+            *presses += 1;
+            Ok(Outcome::repaint())
+        }
+
+        fn view(&self, presses: &u32, _cx: &Context) -> Result<View> {
+            let counters = self
+                .0
+                .iter()
+                .map(|label| (Constraint::Fill(1), View::component(Counter(label))));
+            Ok(View::column([
+                (Constraint::Length(1), View::text(&format!("g:{presses}"))),
+                (Constraint::Length(1), View::row(counters)),
+            ]))
+        }
+    }
+
+    /// A different component type, for replacement at the same position.
+    #[derive(Debug, Clone, PartialEq)]
+    struct Other;
+
+    impl Component for Other {
+        type State = ();
+        type Message = ();
+
+        fn init(&self) -> Result<()> {
+            Ok(())
+        }
+
+        fn update(
+            &self,
+            _state: &mut (),
+            _event: Event,
+            _effects: &mut Effects,
+        ) -> Result<Outcome> {
+            Ok(Outcome::Ignored)
+        }
+
+        fn view(&self, _state: &(), _cx: &Context) -> Result<View> {
+            Ok(View::text("other"))
+        }
+
+        fn cleanup(&self, _state: ()) {
+            CLEANED.with(|cleaned| cleaned.borrow_mut().push("other".to_string()));
+        }
+    }
+
+    #[derive(Clone, PartialEq)]
+    enum Item {
+        Counter(&'static str),
+        Other,
+    }
+
+    /// The model: a row of items, optionally keyed or nested in a group.
+    /// `q` quits, `r` removes the first item, `w` swaps the first two,
+    /// `o` turns the first into `Other`, `B`/`N` append failing counters.
+    #[derive(Default)]
+    struct Screen {
+        items: Vec<Item>,
+        keyed: bool,
+        nested: bool,
+        consume_tab: bool,
+    }
+
+    impl Screen {
+        fn of(labels: &[&'static str]) -> Self {
+            Self {
+                items: labels.iter().map(|label| Item::Counter(label)).collect(),
+                ..Self::default()
+            }
+        }
+    }
+
+    impl Model for Screen {
+        type Message = ();
+
+        fn update(&mut self, event: Event, effects: &mut Effects) -> Result<Outcome> {
+            if self.consume_tab
+                && event
+                    .key()
+                    .is_some_and(|key| key.is_special(SpecialKey::Tab))
+            {
+                return Ok(Outcome::unchanged());
+            }
+            match event.key_text() {
+                Some("q") => effects.quit(),
+                Some("r") => {
+                    self.items.remove(0);
+                }
+                Some("w") => self.items.swap(0, 1),
+                Some("o") => self.items[0] = Item::Other,
+                Some("B") => self.items.push(Item::Counter("boom")),
+                Some("N") => self.items.push(Item::Counter("noinit")),
+                _ => return Ok(Outcome::Ignored),
+            }
+            Ok(Outcome::layout())
+        }
+
+        fn view(&self, _cx: &Context) -> Result<View> {
+            if self.nested {
+                let labels = self
+                    .items
+                    .iter()
+                    .filter_map(|item| match item {
+                        Item::Counter(label) => Some(*label),
+                        Item::Other => None,
+                    })
+                    .collect();
+                return Ok(View::component(Group(labels)));
+            }
+            let items = self.items.iter().map(|item| {
+                let (view, key) = match item {
+                    Item::Counter(label) => (View::component(Counter(label)), *label),
+                    Item::Other => (View::component(Other), "other"),
+                };
+                let view = if self.keyed { view.key(key) } else { view };
+                (Constraint::Fill(1), view)
+            });
+            Ok(View::row(items))
+        }
+    }
+
+    fn key(byte: u8) -> InputEvent {
+        InputEvent::Key(KeyEvent::decode_legacy_byte(byte).expect("decodable byte"))
+    }
+
+    fn special(key: SpecialKey, modifiers: KeyModifiers) -> InputEvent {
+        InputEvent::Key(KeyEvent::special(key, modifiers, KeyEncoding::Legacy))
+    }
+
+    fn tab() -> InputEvent {
+        special(SpecialKey::Tab, KeyModifiers::NONE)
+    }
+
+    fn start(model: Screen) -> App<Screen> {
+        CLEANED.with(|cleaned| cleaned.borrow_mut().clear());
+        let mut app = App::new(model);
+        app.start(
+            &TerminalCapabilities::conservative(1),
+            (30, 2),
+            Duration::ZERO,
+        )
+        .expect("first frame");
+        app
+    }
+
+    fn press(app: &mut App<Screen>, inputs: impl IntoIterator<Item = InputEvent>) {
+        for input in inputs {
+            app.handle(input, Duration::ZERO).expect("handled");
+        }
+    }
+
+    /// What the screen shows, whitespace collapsed: `"*a:1 b:0"`.
+    fn shown(app: &App<Screen>) -> String {
+        let session = app.session.as_ref().expect("running");
+        session
+            .renderer
+            .back_buffer()
+            .text_rows()
+            .join(" ")
+            .split_whitespace()
+            .collect::<Vec<_>>()
+            .join(" ")
+    }
+
+    #[test]
+    fn focus_starts_on_the_first_focusable_component() {
+        let mut app = start(Screen::of(&["a", "b"]));
+        assert_eq!(shown(&app), "*a:0 b:0");
+        press(&mut app, [key(b'+'), key(b'+')]);
+        assert_eq!(shown(&app), "*a:2 b:0");
+    }
+
+    #[test]
+    fn tab_moves_focus_and_each_component_keeps_its_own_state() {
+        let mut app = start(Screen::of(&["a", "b", "c"]));
+        press(&mut app, [key(b'+'), tab(), key(b'+'), key(b'+')]);
+        assert_eq!(shown(&app), "a:1 *b:2 c:0");
+        press(&mut app, [tab(), tab()]);
+        assert_eq!(shown(&app), "*a:1 b:2 c:0", "forward focus wraps around");
+        press(&mut app, [special(SpecialKey::Tab, KeyModifiers::SHIFT)]);
+        assert_eq!(shown(&app), "a:1 b:2 *c:0", "Shift+Tab goes back, wrapping");
+        press(&mut app, [special(SpecialKey::BackTab, KeyModifiers::NONE)]);
+        assert_eq!(shown(&app), "a:1 *b:2 c:0");
+    }
+
+    #[test]
+    fn a_model_that_consumes_tab_keeps_focus_where_it_is() {
+        let mut app = start(Screen {
+            consume_tab: true,
+            ..Screen::of(&["a", "b"])
+        });
+        assert!(app.handle(tab(), Duration::ZERO).expect("tab").is_empty());
+        assert_eq!(shown(&app), "*a:0 b:0");
+    }
+
+    #[test]
+    fn ignored_keys_bubble_through_ancestors_to_the_model() {
+        let mut app = start(Screen {
+            nested: true,
+            ..Screen::of(&["a", "b"])
+        });
+        assert_eq!(shown(&app), "g:0 *a:0 b:0");
+        // `g` is ignored by the focused counter and consumed by its group.
+        press(&mut app, [key(b'g'), tab(), key(b'+'), key(b'g')]);
+        assert_eq!(shown(&app), "g:2 a:0 *b:1");
+        // `q` passes both components and reaches the model.
+        press(&mut app, [key(b'q')]);
+        assert!(app.is_finished());
+    }
+
+    #[test]
+    fn component_follow_ups_and_quit_are_effects() {
+        let mut app = start(Screen::of(&["a"]));
+        press(&mut app, [key(b's')]);
+        assert_eq!(shown(&app), "*a:5");
+        press(&mut app, [key(b'x')]);
+        assert!(app.is_finished());
+    }
+
+    #[test]
+    fn ctrl_c_still_quits_when_the_focused_component_ignores_it() {
+        let mut app = start(Screen::of(&["a"]));
+        press(&mut app, [key(0x03)]);
+        assert!(app.is_finished());
+    }
+
+    #[test]
+    fn state_survives_resizes_and_is_cleaned_up_on_unmount() {
+        let mut app = start(Screen {
+            keyed: true,
+            ..Screen::of(&["left", "right"])
+        });
+        press(
+            &mut app,
+            [key(b'+'), InputEvent::Resize { cols: 24, rows: 2 }],
+        );
+        assert_eq!(shown(&app), "*left:1 right:0");
+        press(&mut app, [key(b'r')]);
+        assert_eq!(cleaned(), ["left"]);
+        // The focused component left; focus settles on the next one, whose
+        // state is untouched.
+        assert_eq!(shown(&app), "*right:0");
+    }
+
+    #[test]
+    fn a_type_change_at_the_same_position_replaces_the_slot() {
+        let mut app = start(Screen::of(&["a", "b"]));
+        press(&mut app, [key(b'+'), key(b'o')]);
+        assert_eq!(cleaned(), ["a"]);
+        assert_eq!(shown(&app), "other *b:0");
+    }
+
+    #[test]
+    fn positional_state_stays_with_the_position_when_items_swap() {
+        let mut app = start(Screen::of(&["a", "b"]));
+        press(&mut app, [key(b'+'), key(b'w')]);
+        // Unkeyed: the first position keeps count 1 and focus, now labelled b.
+        assert_eq!(shown(&app), "*b:1 a:0");
+    }
+
+    #[test]
+    fn keyed_state_and_focus_follow_the_key_when_items_swap() {
+        let mut app = start(Screen {
+            keyed: true,
+            ..Screen::of(&["a", "b"])
+        });
+        press(&mut app, [key(b'+'), key(b'w')]);
+        assert_eq!(shown(&app), "b:0 *a:1");
+        assert!(cleaned().is_empty(), "reordering unmounts nothing");
+    }
+
+    #[test]
+    fn a_failing_component_view_mounts_nothing() {
+        let mut app = start(Screen::of(&["a", "b"]));
+        press(&mut app, [key(b'+')]);
+        let error = app
+            .handle(key(b'B'), Duration::ZERO)
+            .expect_err("view fails");
+        assert!(matches!(error, Error::Render(_)));
+        assert_eq!(app.tree.mounted_count(), 2);
+        // The slot created for the failed frame was cleaned up again.
+        assert_eq!(cleaned(), ["boom"]);
+        // The surviving components kept their state and still take input.
+        assert_eq!(shown(&app), "*a:1 b:0");
+    }
+
+    #[test]
+    fn an_init_error_aborts_the_frame() {
+        let mut app = start(Screen::of(&["a"]));
+        let error = app
+            .handle(key(b'N'), Duration::ZERO)
+            .expect_err("init fails");
+        assert!(matches!(error, Error::Callback(_)));
+        assert_eq!(app.tree.mounted_count(), 1);
+        assert!(cleaned().is_empty());
+    }
+
+    #[test]
+    fn dropping_the_app_cleans_up_mounted_components() {
+        let app = start(Screen::of(&["a", "b"]));
+        drop(app);
+        assert_eq!(cleaned().len(), 2);
+    }
+
+    #[test]
+    fn mouse_input_goes_to_the_model_until_hit_testing_exists() {
+        let mut app = start(Screen::of(&["a"]));
+        let click = MouseEvent::new(MouseKind::Down, MouseButton::Left, 0, 0);
+        assert!(
+            app.handle(InputEvent::Mouse(click), Duration::ZERO)
+                .expect("ignored")
+                .is_empty()
+        );
+        assert_eq!(shown(&app), "*a:0");
+    }
+
+    #[test]
+    fn a_follow_up_chain_inside_a_component_is_bounded() {
+        #[derive(Clone, PartialEq)]
+        struct Echo;
+        impl Component for Echo {
+            type State = ();
+            type Message = ();
+            fn init(&self) -> Result<()> {
+                Ok(())
+            }
+            fn update(
+                &self,
+                _state: &mut (),
+                _event: Event,
+                effects: &mut Effects,
+            ) -> Result<Outcome> {
+                effects.send(());
+                Ok(Outcome::repaint())
+            }
+            fn view(&self, _state: &(), _cx: &Context) -> Result<View> {
+                Ok(View::empty())
+            }
+            fn focusable(&self) -> bool {
+                true
+            }
+        }
+        struct Host;
+        impl Model for Host {
+            type Message = ();
+            fn update(&mut self, _event: Event, _effects: &mut Effects) -> Result<Outcome> {
+                Ok(Outcome::Ignored)
+            }
+            fn view(&self, _cx: &Context) -> Result<View> {
+                Ok(View::component(Echo))
+            }
+        }
+        let mut app = App::new(Host);
+        app.start(
+            &TerminalCapabilities::conservative(1),
+            (4, 1),
+            Duration::ZERO,
+        )
+        .expect("first frame");
+        let error = app.handle(key(b'e'), Duration::ZERO).expect_err("overflow");
+        assert!(matches!(error, Error::UpdateOverflow { .. }));
+    }
+
+    #[cfg(debug_assertions)]
+    #[test]
+    #[should_panic(expected = "duplicate key")]
+    fn duplicate_keys_assert_in_debug_builds() {
+        let mut app = start(Screen {
+            keyed: true,
+            ..Screen::of(&["a", "a"])
+        });
+        press(&mut app, [key(b'+')]);
+    }
+
+    #[cfg(debug_assertions)]
+    #[test]
+    #[should_panic(expected = "keyed and unkeyed views are mixed")]
+    fn mixed_keyed_siblings_assert_in_debug_builds() {
+        struct Mixed;
+        impl Model for Mixed {
+            type Message = ();
+            fn update(&mut self, _event: Event, _effects: &mut Effects) -> Result<Outcome> {
+                Ok(Outcome::Ignored)
+            }
+            fn view(&self, _cx: &Context) -> Result<View> {
+                Ok(View::row([
+                    (Constraint::Fill(1), View::component(Counter("a")).key("a")),
+                    (Constraint::Fill(1), View::component(Counter("b"))),
+                ]))
+            }
+        }
+        let _ = App::new(Mixed).start(
+            &TerminalCapabilities::conservative(1),
+            (8, 1),
+            Duration::ZERO,
+        );
+    }
+
+    #[cfg(debug_assertions)]
+    #[test]
+    #[should_panic(expected = "reported no change")]
+    fn component_under_reporting_is_caught_in_debug_builds() {
+        #[derive(Clone, PartialEq)]
+        struct Liar;
+        impl Component for Liar {
+            type State = u32;
+            type Message = ();
+            fn init(&self) -> Result<u32> {
+                Ok(0)
+            }
+            fn update(
+                &self,
+                state: &mut u32,
+                _event: Event,
+                _effects: &mut Effects,
+            ) -> Result<Outcome> {
+                *state += 1;
+                Ok(Outcome::unchanged())
+            }
+            fn view(&self, state: &u32, _cx: &Context) -> Result<View> {
+                Ok(View::text(&state.to_string()))
+            }
+            fn focusable(&self) -> bool {
+                true
+            }
+        }
+        struct Host;
+        impl Model for Host {
+            type Message = ();
+            fn update(&mut self, _event: Event, _effects: &mut Effects) -> Result<Outcome> {
+                Ok(Outcome::Ignored)
+            }
+            fn view(&self, _cx: &Context) -> Result<View> {
+                Ok(View::component(Liar))
+            }
+        }
+        let mut app = App::new(Host);
+        app.start(
+            &TerminalCapabilities::conservative(1),
+            (4, 1),
+            Duration::ZERO,
+        )
+        .expect("first frame");
+        let _ = app.handle(key(b'+'), Duration::ZERO);
     }
 }

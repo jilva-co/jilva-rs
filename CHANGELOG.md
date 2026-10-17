@@ -11,12 +11,22 @@ an RFC amendment (see `docs/ARCHITECTURE.md` §3.1).
 
 ### Changed
 
+- `App::new` is no longer `const` (the component tree needs a hash map).
+
 - Breaking (unreleased placeholder): the Phase-1 `Event { Tick, Resized,
   Custom(String) }` is replaced by `Event<M>` with `Key`, `Mouse`, `Paste`,
   `Resize`, `TerminalFocus` and `Message(M)`.
 
 ### Added
 
+- Components, RFC-0008 slice B (Draft): the `Component` trait (required
+  `init`, `update`, `view`; defaulted `cleanup` and `focusable`),
+  `View::component`, `View::key` and `Key`. The runtime gives each mounted
+  component a framework-owned state slot in a generational table, keyed by
+  its path or key; expansion is all-or-nothing on errors. Keys go to the
+  focused component, its ancestors, then the model; resizes reach every
+  component. Tab / Shift+Tab move focus when nothing consumed them;
+  `Context::is_focused`. `counters` example; `tests/components.rs`.
 - App runtime slice A (RFC-0008 Draft): the `Model` trait, `Event<M>`
   dispatch taxonomy with `KeyEvent::{is_text, is_special, is_ctrl,
   plain_text}`, `Outcome`/`Change`, `Effects` (quit, FIFO follow-ups, 1024

@@ -22,9 +22,10 @@ documentation you actually enjoy reading.
 > (grapheme-aware cell buffer, damage tracking, differential output) is merged;
 > [RFC-0004](docs/RFC/0004-rendering-engine.md) still awaits a decision.
 > Phase 4 is in progress: flex layout, `View`, motion, and the first app
-> runtime slice ([RFC-0008](docs/RFC/0008-app-runtime.md) Draft — `Model`,
-> `App`, `jilva::run`, a counter example). The framework is unreleased
-> (`0.0.0`); components, grid layout, and widgets are future work. See [`docs/PHASE2_TERMINAL_ENGINE.md`](docs/PHASE2_TERMINAL_ENGINE.md)
+> runtime ([RFC-0008](docs/RFC/0008-app-runtime.md) Draft — `Model`, `App`,
+> `jilva::run`, and `Component`s with framework-owned state and Tab focus).
+> The framework is unreleased (`0.0.0`); grid layout and widgets are future
+> work. See [`docs/PHASE2_TERMINAL_ENGINE.md`](docs/PHASE2_TERMINAL_ENGINE.md)
 > for the supported terminal contract and limitations.
 
 Part of [`jilva-co`](https://github.com/jilva-co) — beautiful frameworks for developers.
@@ -123,6 +124,12 @@ Run the first whole app — a counter on the app runtime (`+` / `-` change it,
 cargo run -p jilva --example counter
 ```
 
+Two counter components with their own state; Tab moves focus between them:
+
+```bash
+cargo run -p jilva --example counters
+```
+
 See the rendering engine work without a terminal (paint, diff, and the
 instruction stream that crosses the backend seam):
 
@@ -215,7 +222,7 @@ move when the work is honestly done.
 | 1 | Foundation | Complete |
 | 2 | Terminal Engine | Implemented and verified |
 | 3 | Rendering Engine | Merged; RFC-0004 awaiting decision |
-| 4 | Layout & Components | In progress (flex solver, `View`, motion and blending, app runtime slice A; RFC-0005/6/7/8 Draft) |
+| 4 | Layout & Components | In progress (flex solver, `View`, motion and blending, app runtime, components; RFC-0005/6/7/8 Draft) |
 | 5 | State & Interactivity | Planned |
 | 6 | Design System | Planned |
 | 7 | Alpha Release (`0.1.0`) | Planned |
