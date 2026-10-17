@@ -187,5 +187,8 @@ the provisional `Cell.symbol: char` with a grapheme-capable symbol model and
 name width/segmentation authorities before implementing buffers and diffs.
 That work has not been started here. The required Cargo, three-platform CI,
 PTY and independent-audit evidence is recorded in the
-[continuation report](reviews/PHASE2_CONTINUATION_REPORT.md). Phase 2 is ready
-for maintainer review; PR creation alone was not used as completion evidence.
+[continuation report](reviews/PHASE2_CONTINUATION_REPORT.md). Phase 2's
+implementation PR #8 was externally merged while the final documents were
+being prepared; the audit/delivery documents are provided separately for review.
+PR creation alone was not used as completion evidence, and the agent did not
+perform the merge.

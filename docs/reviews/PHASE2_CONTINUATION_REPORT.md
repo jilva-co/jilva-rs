@@ -2,8 +2,13 @@
 
 ## A. Executive summary
 
-Status: **READY FOR MAINTAINER REVIEW** on `phase2-terminal-engine`,
-[PR #8](https://github.com/jilva-co/jilva-rs/pull/8). No merge, release,
+Status: **IMPLEMENTED AND VERIFIED**. The implementation was delivered on
+`phase2-terminal-engine`, [PR #8](https://github.com/jilva-co/jilva-rs/pull/8).
+While the final documents were being prepared, GitHub reported that
+@hamroqulovv merged #8 at `2026-10-17T03:47:19Z` as `442d9d8` and removed the
+branch. The agent did not issue a merge command. The remaining audit and
+delivery documents were moved onto current main in the separate
+`phase2-audit-and-delivery-docs` branch for a follow-up PR. No release,
 publication, version increase, or Phase 3 implementation was performed.
 
 The continuation completed an existing uncommitted implementation. At entry,
@@ -222,26 +227,32 @@ and `0.0.0`.
 
 ## K. Pull request and commits
 
-- PR: [#8](https://github.com/jilva-co/jilva-rs/pull/8).
-- Branch: `phase2-terminal-engine`; base: `main`.
+- Implementation PR: [#8](https://github.com/jilva-co/jilva-rs/pull/8), externally
+  merged by @hamroqulovv at `2026-10-17T03:47:19Z`; merge commit `442d9d8`.
+- Implementation branch: `phase2-terminal-engine`; base: `main`.
+- Follow-up branch: `phase2-audit-and-delivery-docs`, based on merged main;
+  its diff contains only the 13 audit/delivery/documentation files.
 - `85c4c0d`: governance acceptance revalidation and backend contract.
 - `008708e`: core event/capability/output data and validation.
 - `3b29fb3`: real backend, headless backend, facade integration, tests, demos,
   lockfile and CI.
 - `9fef589`: final formatting correction and inactive-session documentation.
-- The final documentation commit contains this report, implementation/testing
+- `3968234`: final documentation commit, transplanted onto merged main without
+  changing engine code. It contains this report, implementation/testing
   guides, independent audit, current roadmap and user-facing status.
 
 Main review areas: production state machine, resource flags/lease and failure
 policy; output validation and partial delivery; capability inference and
 platform limitations; facade API and no-default behavior. The maintainer must
-review the PR and actual current-head checks before merging. No automatic
-merge is performed.
+review the follow-up PR and actual current-head checks before merging. The
+workflow did not automatically merge either PR; the observed #8 merge was an
+external GitHub change, and the follow-up remains a reviewable contribution.
 
 ## L. Roadmap progress
 
-Phase 2 implementation and verification exit criteria are met on this branch;
-the PR is ready for maintainer review. Foundation and RFC history are preserved.
+Phase 2 implementation and verification exit criteria are met; the engine was
+merged externally through #8. The separate documentation PR supplies final
+audit and delivery records for maintainer review. Foundation and RFC history are preserved.
 Interactive evidence is limited and separately labeled, rather than being
 inferred from headless CI. No unrelated phase is marked complete.
 

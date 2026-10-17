@@ -16,7 +16,7 @@
 that treats beauty as a feature. Calm defaults, thoughtful components, and
 documentation you actually enjoy reading.
 
-> **Status:** Phase 2 — Terminal Engine, ready for maintainer review. Synchronous
+> **Status:** Phase 2 — Terminal Engine, implemented and verified. Synchronous
 > Crossterm integration, typed input/output, capability profiles, and a
 > deterministic headless backend are implemented. The framework is unreleased
 > (`0.0.0`); the renderer, application runtime, layout engine, and widgets are
@@ -186,7 +186,7 @@ move when the work is honestly done.
 | Phase | Name | State |
 |---|---|---|
 | 1 | Foundation | Complete |
-| 2 | Terminal Engine | Verified; ready for maintainer review |
+| 2 | Terminal Engine | Implemented and verified |
 | 3 | Rendering Engine | Planned |
 | 4 | Layout & Components | Planned |
 | 5 | State & Interactivity | Planned |

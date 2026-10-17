@@ -30,7 +30,7 @@ Exit criterion: the workspace builds cleanly, facade-only conventions hold for
 (historical acceptance record preserved; workspace and current acceptance
 authorization revalidated 2026-10-17).
 
-## Phase 2 — Terminal Engine (verified; ready for maintainer review 2026-10-17)
+## Phase 2 — Terminal Engine (implemented and verified 2026-10-17)
 
 The backend seam behind which all real-terminal contact lives
 (`docs/ARCHITECTURE.md` §3.5, §3.10).
@@ -39,7 +39,9 @@ The existing implementation was audited and completed: a synchronous optional
 Crossterm backend, typed events/output/capabilities, retryable resource cleanup,
 deterministic headless backend, and separate real/headless demos. Verification
 is recorded in `docs/reviews/PHASE2_CONTINUATION_REPORT.md`; this status does
-not imply a merged PR, publication, runtime, renderer, or widget library.
+not imply publication, runtime, renderer, or a widget library. The implementation
+PR #8 was merged externally by @hamroqulovv while this continuation was still
+preparing its final documents; the agent did not issue a merge command.
 
 - [x] Current authorization, technical acceptance and stable seam decisions
   recorded with historical evidence limitations (2026-10-17).
@@ -55,8 +57,9 @@ the opt-in Windows ConPTY normal/panic restoration test passes separately.
 Ubuntu, Windows and macOS quality jobs plus formatting pass in
 [CI run 39000026013](https://github.com/jilva-co/jilva-rs/actions/runs/39000026013)
 for `9fef589`. Earlier runs failed formatting; their correction and results
-are retained in the continuation report. PR #8 awaits maintainer review and
-must not be merged automatically. Physical terminal coverage remains limited
+are retained in the continuation report. PR #8 was merged externally at
+2026-10-17T03:47:19Z as `442d9d8`. Audit and delivery documentation are supplied
+on a separate follow-up branch for review. Physical terminal coverage remains limited
 as documented; headless CI is not visual validation.
 
 - Backend capability interface plus capability model and detection
