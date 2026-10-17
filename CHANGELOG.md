@@ -11,6 +11,9 @@ an RFC amendment (see `docs/ARCHITECTURE.md` §3.1).
 
 ### Added
 
+- Phase 4 first slice (RFC-0005 Draft): `Layout` flex row/column solver with
+  `Constraint`, `Direction`, `Align`, gap, a deterministic remainder rule and a
+  never-panic overflow policy; `Rect::{right, bottom, intersection, inner}`.
 - Phase 3 rendering engine (`jilva-core::renderer`, RFC-0004 Draft): a
   grapheme-cluster `Cell`, a bounds-disciplined `Buffer` that keeps
   double-width glyphs whole, damage tracking (`Damage`), a pure `diff` /

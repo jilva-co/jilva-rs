@@ -120,7 +120,20 @@ the grapheme-capable symbol type + width/segmentation authorities no later
 than this phase — golden tests must not entrench a `char`-shaped API
 (RFC-2 §8 dependency, RFC-1 OQ12).
 
-## Phase 4 — Layout & Components (planned)
+## Phase 4 — Layout & Components (in progress)
+
+First slice implemented on branch `phase4-layout-solver` (stacked on the
+Phase-3 branch; RFC-0005 Draft, `docs/RFC/0005-layout-solver.md`):
+
+- [x] Flex row/column solver: closed constraint vocabulary (`Length`,
+  `Percentage`, `Min`, `Max`, `Fill`), gap, alignment, named remainder rule
+  (largest fraction, earlier item wins ties), never-panic overflow policy
+  (later items yield first); `Rect::{right, bottom, intersection, inner}`
+- [ ] Grid tracks, measure/arrange protocol, nesting
+- [ ] Component contract (RFC-2 reflected in code), invalidation wiring
+- [ ] Maintainer decision on RFC-0005
+
+Original scope, for reference:
 
 Intent-based layout and the component contract (`docs/ARCHITECTURE.md` §3.3,
 §3.6; considerations §8.3, §8.4, §8.8, §8.9). Exact contract flavour is

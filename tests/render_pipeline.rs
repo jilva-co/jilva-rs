@@ -184,3 +184,47 @@ fn width_authorities_are_reachable_and_consistent() {
     assert_eq!(end, 6);
     assert_eq!(buffer.text_rows(), ["a日本x"]);
 }
+
+#[test]
+fn layout_regions_drive_painting_and_damage() {
+    use jilva::{Constraint, Layout};
+
+    let caps = caps();
+    let screen = Rect::new(0, 0, 30, 6);
+    let rows = Layout::column()
+        .constraints([
+            Constraint::Length(1),
+            Constraint::Fill(1),
+            Constraint::Length(1),
+        ])
+        .split(screen);
+    let (header, body, footer) = (rows[0], rows[1], rows[2]);
+    let columns = Layout::row()
+        .constraints([Constraint::Percentage(30), Constraint::Fill(1)])
+        .gap(1)
+        .split(body);
+
+    let mut renderer = Renderer::new(screen.width, screen.height);
+    let paint = |renderer: &mut Renderer, region: Rect, text: &str| {
+        renderer
+            .back_buffer_mut()
+            .set_string_clipped(region.x, region.y, text, plain(), region);
+    };
+    paint(&mut renderer, header, "header");
+    paint(&mut renderer, columns[0], "nav");
+    paint(&mut renderer, columns[1], "content");
+    paint(&mut renderer, footer, "footer");
+    let first = renderer.present(&Damage::Full, &caps);
+    assert!(!first.is_empty());
+
+    // Only the content pane changes, and its layout rectangle *is* the damage.
+    paint(&mut renderer, columns[1], "CONTENT");
+    let frame = renderer.present(&Damage::from_rects([columns[1]]), &caps);
+    assert_eq!(
+        frame,
+        [
+            OutputCommand::move_to(columns[1].x, columns[1].y),
+            OutputCommand::print_segment("CONTENT"),
+        ]
+    );
+}

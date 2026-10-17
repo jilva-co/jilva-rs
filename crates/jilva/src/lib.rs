@@ -4,9 +4,9 @@
 //! capability snapshots, and a deterministic headless backend. Phase 3 adds
 //! the rendering engine: a grapheme-aware cell [`Buffer`], damage tracking,
 //! and a pure [`diff`] / [`Renderer`] that produce backend instruction
-//! streams. This facade contains re-exports and documentation; the
-//! application runtime, layout solver, and widgets belong to later
-//! milestones.
+//! streams, and a flex [`Layout`] that splits a [`Rect`] into regions. This
+//! facade contains re-exports and documentation; the application runtime,
+//! grid layout, and widgets belong to later milestones.
 //!
 //! The default `crossterm` feature provides the real terminal backend.
 //! Disable default features for a terminal-library-free headless build.
@@ -24,7 +24,7 @@ pub use jilva_core::component::ComponentId;
 pub use jilva_core::error::{Error, Result};
 pub use jilva_core::events::{Event, InputEvent, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 pub use jilva_core::events::{MouseButton, MouseEvent, MouseKind, SpecialKey};
-pub use jilva_core::layout::Rect;
+pub use jilva_core::layout::{Align, Constraint, Direction, Layout, Rect};
 pub use jilva_core::lifecycle::LifecycleState;
 pub use jilva_core::output::{Ansi16Color, OutputCommand, ResolvedAttributes, ResolvedColor};
 pub use jilva_core::renderer::{
