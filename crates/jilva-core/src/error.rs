@@ -5,8 +5,9 @@
 //! context, backtraces, and per-crate error types are RFC detail; this enum
 //! is the minimal honest starting point with zero third-party dependencies.
 //!
-//! Only this error type (re-exported through the `jilva` facade) is public
-//! API. Internal modules convert inward via [`From`]; nothing converts outward.
+//! Framework operations use this error type through the facade. The low-level
+//! terminal backend deliberately returns [`std::io::Result`] to retain I/O
+//! error kinds and sources; callers can convert inward via [`From`].
 
 use std::fmt;
 use std::io;

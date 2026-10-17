@@ -5,7 +5,7 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
-description = "Framework foundations for jilva-rs (Phase-1 minimal types only, no engine)"
+description = "Terminal-independent events, capabilities, output data, and framework foundations for Jilva"
 
 [lints]
 workspace = true
