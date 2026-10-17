@@ -73,9 +73,9 @@ jobs:
         run: cargo run -p jilva --example motion_demo --all-features --locked
       - name: Motion demo without terminal library
         run: cargo run -p jilva --example motion_demo --no-default-features --locked
-      - name: Theme gallery headless
+      - name: Design studio headless
         run: cargo run -p jilva --example themes --all-features --locked -- --headless
-      - name: Theme gallery without terminal library
+      - name: Design studio without terminal library
         run: cargo run -p jilva --example themes --no-default-features --locked -- --headless
       - name: Build docs with all features (deny warnings)
         run: cargo doc --workspace --all-features --no-deps --locked

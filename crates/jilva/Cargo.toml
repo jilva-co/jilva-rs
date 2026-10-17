@@ -50,6 +50,7 @@ path = "../../examples/motion_demo.rs"
 [[example]]
 name = "themes"
 path = "../../examples/themes.rs"
+test = true
 
 [[example]]
 name = "counter"

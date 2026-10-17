@@ -346,35 +346,35 @@ impl Theme {
             highlight,
         ) = if light {
             (
-                (248, 250, 252),
-                (241, 245, 249),
-                (226, 232, 240),
-                (23, 37, 84),
-                (71, 85, 105),
-                (100, 116, 139),
-                (67, 56, 202),
-                (4, 120, 87),
-                (146, 64, 14),
-                (159, 18, 57),
-                (7, 89, 133),
-                (219, 234, 254),
-                (254, 240, 138),
+                (247, 246, 252),
+                (236, 236, 248),
+                (222, 223, 242),
+                (35, 32, 55),
+                (84, 80, 111),
+                (153, 150, 179),
+                (83, 44, 190),
+                (25, 85, 60),
+                (114, 79, 17),
+                (165, 44, 88),
+                (42, 84, 160),
+                (83, 44, 190),
+                (236, 220, 176),
             )
         } else {
             (
-                (17, 24, 39),
-                (30, 41, 59),
-                (51, 65, 85),
-                (226, 232, 240),
-                (148, 163, 184),
-                (100, 116, 139),
-                (129, 140, 248),
-                (110, 231, 183),
-                (252, 211, 77),
-                (253, 164, 175),
-                (125, 211, 252),
-                (51, 65, 85),
-                (76, 61, 24),
+                (20, 20, 30),
+                (32, 32, 46),
+                (38, 38, 50),
+                (246, 246, 239),
+                (174, 177, 196),
+                (96, 99, 123),
+                (211, 250, 113),
+                (148, 229, 184),
+                (255, 203, 115),
+                (255, 154, 180),
+                (142, 216, 250),
+                (211, 250, 113),
+                (74, 62, 39),
             )
         };
         let ink = |fg| ResolvedAttributes::new(rgb(fg), rgb(canvas));
@@ -393,7 +393,7 @@ impl Theme {
                 ink(warning),
                 ink(danger),
                 ink(info),
-                fill(text, selection),
+                fill(canvas, selection),
                 fill(canvas, text),
                 fill(text, highlight),
             ],
@@ -716,7 +716,7 @@ mod tests {
     }
 
     #[test]
-    fn curated_text_roles_have_legible_truecolor_contrast() {
+    fn curated_text_roles_have_legible_contrast_across_colour_tiers() {
         fn luminance(color: ResolvedColor) -> f64 {
             let (r, g, b) = color.to_rgb((0, 0, 0));
             let channel = |v: u8| {
@@ -730,21 +730,51 @@ mod tests {
             0.2126 * channel(r) + 0.7152 * channel(g) + 0.0722 * channel(b)
         }
         for theme in [Theme::dark(), Theme::light()] {
-            let resolved = theme.resolve(&profile(ColorTier::Truecolor));
-            for token in [
-                SemanticToken::Text,
-                SemanticToken::Muted,
-                SemanticToken::Accent,
-                SemanticToken::Success,
-                SemanticToken::Warning,
-                SemanticToken::Danger,
-                SemanticToken::Info,
+            for tier in [
+                ColorTier::Truecolor,
+                ColorTier::Palette256,
+                ColorTier::Ansi16,
             ] {
-                let attrs = resolved.style(token);
-                let fg = luminance(attrs.fg);
-                let bg = luminance(attrs.bg);
-                let ratio = (fg.max(bg) + 0.05) / (fg.min(bg) + 0.05);
-                assert!(ratio >= 4.5, "{} {token:?}: contrast {ratio}", theme.name());
+                let resolved = theme.resolve(&profile(tier));
+                for token in [
+                    SemanticToken::Text,
+                    SemanticToken::Muted,
+                    SemanticToken::Accent,
+                    SemanticToken::Success,
+                    SemanticToken::Warning,
+                    SemanticToken::Danger,
+                    SemanticToken::Info,
+                ] {
+                    let attrs = resolved.style(token);
+                    let fg = luminance(attrs.fg);
+                    for surface in [
+                        SemanticToken::Background,
+                        SemanticToken::Surface,
+                        SemanticToken::Overlay,
+                    ] {
+                        let bg = luminance(resolved.style(surface).bg);
+                        let ratio = (fg.max(bg) + 0.05) / (fg.min(bg) + 0.05);
+                        assert!(
+                            ratio >= 4.5,
+                            "{} {tier:?}: {token:?} on {surface:?}: contrast {ratio}",
+                            theme.name()
+                        );
+                    }
+                }
+                for token in [
+                    SemanticToken::Selection,
+                    SemanticToken::Cursor,
+                    SemanticToken::Highlight,
+                ] {
+                    let attrs = resolved.style(token);
+                    let (fg, bg) = (luminance(attrs.fg), luminance(attrs.bg));
+                    let ratio = (fg.max(bg) + 0.05) / (fg.min(bg) + 0.05);
+                    assert!(
+                        ratio >= 4.5,
+                        "{} {tier:?}: {token:?}: contrast {ratio}",
+                        theme.name()
+                    );
+                }
             }
         }
     }
@@ -783,13 +813,13 @@ mod tests {
         assert_eq!(
             actual,
             [
-                592445557573443485,
-                16494632165578577568,
-                11392774627701614884,
+                15845582647675115167,
+                9076843533776271062,
+                6152017087749698915,
                 1622133808147984732,
-                9743986973981258536,
-                1507084662043845423,
-                14608517790598914415,
+                12764583789862103536,
+                7141424972439665850,
+                3647422203970561593,
                 1622133808147984732,
             ]
         );

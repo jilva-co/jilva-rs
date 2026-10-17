@@ -11,6 +11,10 @@ a design amendment (see [design decisions](docs/README.md#design-decisions)).
 
 ### Changed
 
+- Expressive built-in palettes: Electric dusk (lime/cyan, deep indigo) and Prism
+  paper (violet/blue); contrasting selection and primary-action surfaces.
+- 256-colour RGB conversion chooses the nearest stable cube/gray entry, with
+  lower-index ties, preserving neutral depth instead of collapsing to black.
 - Theme integration: `Context` is now `Clone` instead of `Copy`; `new` and
   `with_focused` are no longer const. Use `.clone()` to retain a context.
 - Mono profile resolution suppresses decorative flags even when an explicit
@@ -26,11 +30,16 @@ a design amendment (see [design decisions](docs/README.md#design-decisions)).
 
 ### Added
 
+- `View::wrap` with span-preserving ASCII-space/grapheme wrapping;
+  `View::padding_xy` and `Rect::inner_xy` for balanced terminal-cell spacing.
+- Offline Jilva Studio replaces the token chart: responsive design studies,
+  controlled selection, visible focus, and SVG/text exports via `--snapshots`.
+  Geometry fixtures, cross-tier contrast checks, and resize/state regressions.
 - Semantic themes: 14 canonical roles (original `Selected` spelling preserved),
   `Theme::{dark,light}`, partial overrides/extensions, `StyleState` overlays,
   shared `ResolvedTheme` caches, `Context::{style,style_with}`,
   `App::with_theme`, and model/component `Effects::set_theme`.
-  `themes` gallery with a headless mode and cross-tier regression tests.
+  `themes` showcase with a headless mode and cross-tier regression tests.
 - Components, RFC-0008 slice B (Draft): the `Component` trait (required
   `init`, `update`, `view`; defaulted `cleanup` and `focusable`),
   `View::component`, `View::key` and `Key`. The runtime gives each mounted
