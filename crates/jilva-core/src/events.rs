@@ -1,10 +1,10 @@
 //! State and event propagation taxonomy (`docs/ARCHITECTURE.md` §3.4).
 //!
-//! **Phase-1 status:** a minimal event vocabulary proving the shape of the
-//! taxonomy (timer, resize, app-defined message). The full ladder — keyboard
-//! encodings, mouse modes, tick sources, focus and dispatch order — is RFC
-//! detail. Flow stays unidirectional: events flow in, updates reconcile, and
-//! components never touch the terminal.
+//! **Runtime slice (RFC-0008 Draft):** [`Event`] is the dispatch taxonomy a
+//! [`Model`](crate::Model) receives; [`Change`] and [`Outcome`] are what an
+//! update reports back (consumption and invalidation, RFC-2 §5). Ticks and
+//! component focus join later slices. Flow stays unidirectional: events flow
+//! in, updates reconcile, and nothing here touches the terminal.
 //!
 //! **Phase-2 addition:** [`InputEvent`] is the backend-decoded subset of the
 //! taxonomy crossing the terminal seam (`docs/PHASE2_BACKEND_CONTRACT.md`
@@ -14,46 +14,193 @@
 
 use crate::capabilities::KeyEncoding;
 
-/// An event delivered to the application for one transactional update.
+/// An event delivered to a [`Model`](crate::Model) for one transactional
+/// update (RFC-2 §4 taxonomy, `docs/RFC/0008-app-runtime.md` §2).
 ///
 /// Exactly one update follows one event; intermediate states are never
-/// painted. Marked `#[non_exhaustive]` so keyboard, mouse, and future variants
-/// can be added without breaking downstream exhaustive matches before `1.0`.
+/// painted. `M` is the application's own message type, delivered through
+/// [`Event::Message`]; it defaults to `()` for apps that need none. Marked
+/// `#[non_exhaustive]` so ticks and component focus can be added without
+/// breaking downstream matches before `1.0`.
+///
+/// # Example
+///
+/// ```rust
+/// use jilva_core::{Event, InputEvent, KeyEvent};
+///
+/// let key = KeyEvent::decode_legacy_byte(b'+').expect("printable");
+/// let event: Event = Event::from(InputEvent::Key(key));
+/// assert_eq!(event.key_text(), Some("+"));
+/// ```
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
-pub enum Event {
-    /// Timer tick, for animation and polling.
-    Tick,
-    /// Terminal resized; layout must be recomputed for the new dimensions.
-    Resized {
+pub enum Event<M = ()> {
+    /// A key press or autorepeat. The runtime drops releases by default.
+    Key(KeyEvent),
+    /// A mouse report, only when the terminal offers mouse input.
+    Mouse(MouseEvent),
+    /// Untrusted bracketed-paste text (see [`InputEvent::Paste`]).
+    Paste(String),
+    /// The terminal was resized; layout is recomputed for the new size.
+    Resize {
         /// New terminal width in cells (columns).
         cols: u16,
         /// New terminal height in cells (rows).
         rows: u16,
     },
-    /// Application-defined message through the user-message channel.
-    Custom(String),
+    /// The terminal window gained (`true`) or lost (`false`) focus. This is
+    /// terminal focus, not component focus.
+    TerminalFocus(bool),
+    /// An application message: a follow-up sent through
+    /// [`Effects::send`](crate::Effects::send).
+    Message(M),
 }
 
-impl Event {
+impl<M> Event<M> {
+    /// Returns the key event, if this is one.
+    #[must_use]
+    pub const fn key(&self) -> Option<&KeyEvent> {
+        match self {
+            Self::Key(key) => Some(key),
+            _ => None,
+        }
+    }
+
+    /// Returns the printable text of a key with no Ctrl, Alt or Super held.
+    ///
+    /// Shift is allowed, because terminals often report it for shifted
+    /// characters such as `+`. This is the usual way to match simple
+    /// keyboard shortcuts.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use jilva_core::{Event, KeyEncoding, KeyEvent, KeyModifiers};
+    ///
+    /// let plus = KeyEvent::text("+", KeyModifiers::SHIFT, KeyEncoding::Legacy).expect("text");
+    /// assert_eq!(Event::<()>::Key(plus).key_text(), Some("+"));
+    /// let ctrl_c = KeyEvent::decode_legacy_byte(0x03).expect("ctrl+c");
+    /// assert_eq!(Event::<()>::Key(ctrl_c).key_text(), None);
+    /// ```
+    #[must_use]
+    pub fn key_text(&self) -> Option<&str> {
+        self.key().and_then(KeyEvent::plain_text)
+    }
+
     /// Returns `true` when handling this event must invalidate layout.
     ///
-    /// Only [`Event::Resized`] forces re-layout today; ticks and custom
-    /// messages are paint-only until an RFC says otherwise.
+    /// Only [`Event::Resize`] forces re-layout by itself; everything else
+    /// reports its own [`Change`] through [`Outcome`].
     ///
     /// # Example
     ///
     /// ```rust
     /// use jilva_core::Event;
     ///
-    /// assert!(Event::Resized { cols: 80, rows: 24 }.affects_layout());
-    /// assert!(!Event::Tick.affects_layout());
+    /// let resize: Event = Event::Resize { cols: 80, rows: 24 };
+    /// assert!(resize.affects_layout());
+    /// assert!(!Event::Message(()).affects_layout());
     /// ```
     #[must_use]
-    pub fn affects_layout(&self) -> bool {
+    pub const fn affects_layout(&self) -> bool {
+        matches!(self, Self::Resize { .. })
+    }
+}
+
+impl<M> From<InputEvent> for Event<M> {
+    /// Promotes a backend-decoded input event into the dispatch taxonomy.
+    fn from(input: InputEvent) -> Self {
+        match input {
+            InputEvent::Key(key) => Self::Key(key),
+            InputEvent::Mouse(mouse) => Self::Mouse(mouse),
+            InputEvent::Focus(gained) => Self::TerminalFocus(gained),
+            InputEvent::Paste(text) => Self::Paste(text),
+            InputEvent::Resize { cols, rows } => Self::Resize { cols, rows },
+        }
+    }
+}
+
+/// What an update changed, ordered `None < Repaint < Layout`
+/// (RFC-2 §5 change classes).
+///
+/// Over-reporting is always correct, only slower; under-reporting is a bug,
+/// which debug builds of the runtime detect. When unsure, report
+/// [`Change::Layout`]. There is deliberately no fourth class.
+///
+/// # Example
+///
+/// ```rust
+/// use jilva_core::Change;
+///
+/// assert!(Change::None < Change::Repaint && Change::Repaint < Change::Layout);
+/// assert_eq!(Change::Repaint.max(Change::Layout), Change::Layout);
+/// ```
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
+pub enum Change {
+    /// Nothing observable changed: no view, no output.
+    #[default]
+    None,
+    /// Text, attributes or cursor changed inside unchanged regions.
+    Repaint,
+    /// Geometry may have changed: constraints, children, measured text size.
+    Layout,
+}
+
+/// The result of one update: whether the event was consumed, and what changed
+/// (the RFC-2 §5 carrier, `docs/RFC/0008-app-runtime.md` §2).
+///
+/// An ignored event changed nothing; a consumed event carries its
+/// [`Change`]. Ignored key events continue to the next handler and finally
+/// to the runtime defaults (Ctrl+C quits).
+///
+/// # Example
+///
+/// ```rust
+/// use jilva_core::{Change, Outcome};
+///
+/// assert_eq!(Outcome::repaint(), Outcome::Consumed(Change::Repaint));
+/// assert_eq!(Outcome::Ignored.change(), Change::None);
+/// assert!(!Outcome::Ignored.is_consumed());
+/// ```
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum Outcome {
+    /// Not handled here; nothing changed.
+    Ignored,
+    /// Handled; the payload says what changed.
+    Consumed(Change),
+}
+
+impl Outcome {
+    /// Consumed, with a paint-only change.
+    #[must_use]
+    pub const fn repaint() -> Self {
+        Self::Consumed(Change::Repaint)
+    }
+
+    /// Consumed, with a geometry change. Always a correct answer.
+    #[must_use]
+    pub const fn layout() -> Self {
+        Self::Consumed(Change::Layout)
+    }
+
+    /// Consumed, with nothing observable changed.
+    #[must_use]
+    pub const fn unchanged() -> Self {
+        Self::Consumed(Change::None)
+    }
+
+    /// Returns `true` unless the event was ignored.
+    #[must_use]
+    pub const fn is_consumed(self) -> bool {
+        matches!(self, Self::Consumed(_))
+    }
+
+    /// Returns the reported change; [`Change::None`] when ignored.
+    #[must_use]
+    pub const fn change(self) -> Change {
         match self {
-            Self::Resized { .. } => true,
-            Self::Tick | Self::Custom(_) => false,
+            Self::Ignored => Change::None,
+            Self::Consumed(change) => change,
         }
     }
 }
@@ -237,6 +384,56 @@ impl KeyEvent {
     #[must_use]
     pub const fn is_printable(&self) -> bool {
         matches!(self.code, KeyCode::Text(_))
+    }
+
+    /// Returns the printable text when no Ctrl, Alt, Super, Hyper or Meta is
+    /// held; Shift is allowed (shifted characters often report it).
+    #[must_use]
+    pub fn plain_text(&self) -> Option<&str> {
+        match &self.code {
+            KeyCode::Text(text) if !self.modifiers.has_command_modifier() => Some(text),
+            _ => None,
+        }
+    }
+
+    /// Returns `true` for exactly this printable text with no command
+    /// modifier held (see [`KeyEvent::plain_text`]).
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use jilva_core::KeyEvent;
+    ///
+    /// let q = KeyEvent::decode_legacy_byte(b'q').expect("printable");
+    /// assert!(q.is_text("q"));
+    /// ```
+    #[must_use]
+    pub fn is_text(&self, text: &str) -> bool {
+        self.plain_text() == Some(text)
+    }
+
+    /// Returns `true` for this named key with no command modifier held.
+    #[must_use]
+    pub fn is_special(&self, key: SpecialKey) -> bool {
+        self.code == KeyCode::Special(key) && !self.modifiers.has_command_modifier()
+    }
+
+    /// Returns `true` for Ctrl plus this text (ASCII case-insensitive) with
+    /// no Alt, Super, Hyper or Meta held.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use jilva_core::KeyEvent;
+    ///
+    /// let ctrl_c = KeyEvent::decode_legacy_byte(0x03).expect("ctrl+c");
+    /// assert!(ctrl_c.is_ctrl("c"));
+    /// ```
+    #[must_use]
+    pub fn is_ctrl(&self, text: &str) -> bool {
+        let m = self.modifiers;
+        let only_ctrl = m.ctrl && !m.alt && !m.super_key && !m.hyper && !m.meta;
+        only_ctrl && matches!(&self.code, KeyCode::Text(code) if code.eq_ignore_ascii_case(text))
     }
 
     /// Decodes one legacy byte (C0 control, DEL, or printable ASCII) into a
@@ -480,6 +677,13 @@ impl KeyModifiers {
     pub const fn is_empty(self) -> bool {
         !self.shift && !self.ctrl && !self.alt && !self.super_key && !self.hyper && !self.meta
     }
+
+    /// Returns `true` when a command modifier (Ctrl, Alt, Super, Hyper or
+    /// Meta) is held. Shift alone is not a command modifier.
+    #[must_use]
+    pub const fn has_command_modifier(self) -> bool {
+        self.ctrl || self.alt || self.super_key || self.hyper || self.meta
+    }
 }
 
 /// A decoded mouse report: action kind, button, and cell position.
@@ -623,9 +827,89 @@ mod tests {
 
     #[test]
     fn only_resize_invalidates_layout() {
-        assert!(Event::Resized { cols: 80, rows: 24 }.affects_layout());
-        assert!(!Event::Tick.affects_layout());
-        assert!(!Event::Custom("hello".to_string()).affects_layout());
+        let resize: Event = Event::Resize { cols: 80, rows: 24 };
+        assert!(resize.affects_layout());
+        assert!(!Event::Message("hello").affects_layout());
+        assert!(!Event::<()>::TerminalFocus(true).affects_layout());
+    }
+
+    #[test]
+    fn input_promotes_into_every_dispatch_variant() {
+        let key = key_fixture();
+        let InputEvent::Key(inner) = key.clone() else {
+            panic!("key fixture is a key");
+        };
+        assert_eq!(Event::<()>::from(key), Event::Key(inner));
+        assert!(matches!(
+            Event::<()>::from(mouse_fixture()),
+            Event::Mouse(_)
+        ));
+        assert_eq!(
+            Event::<()>::from(InputEvent::Focus(false)),
+            Event::TerminalFocus(false)
+        );
+        assert_eq!(
+            Event::<()>::from(InputEvent::Paste("p".to_string())),
+            Event::Paste("p".to_string())
+        );
+        assert_eq!(
+            Event::<()>::from(input_resize(10, 4)),
+            Event::Resize { cols: 10, rows: 4 }
+        );
+    }
+
+    #[test]
+    fn key_text_allows_shift_and_rejects_command_modifiers() {
+        let shifted = KeyEvent::text("+", KeyModifiers::SHIFT, Enc::Legacy).expect("text");
+        assert_eq!(Event::<()>::Key(shifted).key_text(), Some("+"));
+        let alt = KeyEvent::text("x", KeyModifiers::ALT, Enc::Legacy).expect("text");
+        assert_eq!(Event::<()>::Key(alt).key_text(), None);
+        let ctrl = KeyEvent::decode_legacy_byte(0x03).expect("ctrl+c");
+        assert_eq!(Event::<()>::Key(ctrl).key_text(), None);
+        let logo = KeyEvent::text(
+            "x",
+            KeyModifiers::new(false, false, false, true),
+            Enc::Legacy,
+        )
+        .expect("text");
+        assert_eq!(Event::<()>::Key(logo).key_text(), None);
+        assert_eq!(Event::Message(1).key_text(), None);
+    }
+
+    #[test]
+    fn key_matchers_compare_identity_and_modifiers() {
+        let ctrl_c = KeyEvent::decode_legacy_byte(0x03).expect("ctrl+c");
+        assert!(ctrl_c.is_ctrl("c"));
+        assert!(ctrl_c.is_ctrl("C"));
+        assert!(!ctrl_c.is_text("c"));
+        let q = KeyEvent::decode_legacy_byte(b'q').expect("q");
+        assert!(q.is_text("q"));
+        assert!(!q.is_text("Q"));
+        assert!(!q.is_ctrl("q"));
+        let enter = KeyEvent::special(SpecialKey::Enter, KeyModifiers::NONE, Enc::Legacy);
+        assert!(enter.is_special(SpecialKey::Enter));
+        assert!(!enter.is_special(SpecialKey::Tab));
+        assert_eq!(enter.plain_text(), None);
+        let alt_enter = KeyEvent::special(SpecialKey::Enter, KeyModifiers::ALT, Enc::Legacy);
+        assert!(!alt_enter.is_special(SpecialKey::Enter));
+        let ctrl_alt_c = KeyEvent::text(
+            "c",
+            KeyModifiers::new(false, true, true, false),
+            Enc::Legacy,
+        )
+        .expect("text");
+        assert!(!ctrl_alt_c.is_ctrl("c"));
+    }
+
+    #[test]
+    fn change_classes_are_ordered_and_outcomes_carry_them() {
+        assert!(Change::None < Change::Repaint);
+        assert!(Change::Repaint < Change::Layout);
+        assert_eq!(Change::default(), Change::None);
+        assert_eq!(Outcome::layout().change(), Change::Layout);
+        assert_eq!(Outcome::unchanged().change(), Change::None);
+        assert!(Outcome::unchanged().is_consumed());
+        assert!(!Outcome::Ignored.is_consumed());
     }
 
     #[test]

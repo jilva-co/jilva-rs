@@ -9,13 +9,35 @@ an RFC amendment (see `docs/ARCHITECTURE.md` §3.1).
 
 ## [Unreleased]
 
+### Changed
+
+- Breaking (unreleased placeholder): the Phase-1 `Event { Tick, Resized,
+  Custom(String) }` is replaced by `Event<M>` with `Key`, `Mouse`, `Paste`,
+  `Resize`, `TerminalFocus` and `Message(M)`.
+
 ### Added
+
+- App runtime slice A (RFC-0008 Draft): the `Model` trait, `Event<M>`
+  dispatch taxonomy with `KeyEvent::{is_text, is_special, is_ctrl,
+  plain_text}`, `Outcome`/`Change`, `Effects` (quit, FIFO follow-ups, 1024
+  cap with `Error::UpdateOverflow`), `Context`, and the sans-IO `App` runtime
+  behind the `Driven` trait. `jilva::run` / `run_with` drive it from
+  `jilva-terminal`, restoring the terminal on return, error and panic unwind.
+  Defaults: key releases dropped, Ctrl+C quits when ignored. `counter`
+  example; `tests/app_runtime.rs`; `TestDoubleBackend::fail_poll_when_exhausted`
+  so a script without a quit fails instead of spinning.
 
 - Colour blending and motion (RFC-0007 Draft): `ResolvedColor::{to_rgb, blend}`,
   `Buffer::map_attrs`, `View::{gradient, gradient_text, tint}` with `Backdrop`,
   and `Easing`, `Lerp`, `Transition` (injected time, retargeting, reduced
   motion); `motion_demo` example. ADR-0004 records the beauty-first product
-  direction.
+  direction, amended by the owner on 2026-10-17: AI-agent and streaming CLIs
+  first, reproducibility as the second headline, an offline agent-chat demo
+  instead of the dashboard.
+- RFC-0008 Draft (`docs/RFC/0008-app-runtime.md`): plan for the app runtime
+  (sans-IO `App`, `Model`, `Outcome`/`Change`, `Effects`, terminal driver) and
+  the first `Component` slice; counter and two-counter examples. Not
+  implemented.
 - `View` (RFC-0006 Draft): an owned, geometry-free frame description with text
   and spans, row/column, overlay, padding and borders; `View::paint` and
   `Renderer::render` (describe → paint → diff); `view_demo` example.

@@ -254,10 +254,17 @@ user app  →  jilva  →  jilva-core
 1. **No cycles, ever.** `jilva-core` depends on nothing in this workspace.
    `jilva-terminal` depends on `jilva-core` for shared capability profiles,
    events, output commands, geometry and their pure validation/value helpers.
-   It never drives application, component, layout or rendering behavior.
+   It never decides application, component, layout or rendering behavior.
+   It may *pump* a core-defined `Driven` object (RFC-0008 §4): read input
+   from a backend, pass it with the elapsed time to `Driven::handle`, and
+   write the returned output commands. Dispatch, update, view, layout and
+   paint stay inside core; the driver owns only the terminal session, the
+   wall clock and the event-pump loop.
    `jilva-core` never depends on `jilva-terminal`; `jilva` depends on both.
    This is the 2026-10-16 ownership amendment, clarified 2026-10-17 to remove
-   the contradictory original no-dependency sentence.
+   the contradictory original no-dependency sentence, and clarified again on
+   2026-10-17 by the project owner (RFC-0008 open question 1) to place the
+   run driver in `jilva-terminal`.
 2. **Core never names a backend.** No terminal library, no platform module, no
    `cfg(windows)` branching inside `jilva-core`. Capability *profiles* are plain
    data defined in core; capability *detection* lives in `jilva-terminal`.
@@ -266,7 +273,9 @@ user app  →  jilva  →  jilva-core
    to terminal. Core performs no ambient probing.
 3. **Terminal never sees app state.** `jilva-terminal` operates on draw
    instructions and emits decoded events. It takes no component, state, or
-   style-token types as inputs (ADR-0003).
+   style-token types as inputs (ADR-0003). The driver's generic `D: Driven`
+   parameter is opaque: terminal code calls only the `Driven` methods and
+   never names, inspects or constructs the application model.
 4. **Facade contains no logic.** If a pull request adds behaviour to `jilva`
    that could live in core or terminal, it belongs there.
 5. **Future crates obey the same acyclicity:** `jilva-widgets` → facade-level

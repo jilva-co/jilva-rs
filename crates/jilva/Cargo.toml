@@ -47,6 +47,11 @@ path = "../../examples/view_demo.rs"
 name = "motion_demo"
 path = "../../examples/motion_demo.rs"
 
+[[example]]
+name = "counter"
+path = "../../examples/counter.rs"
+required-features = ["crossterm"]
+
 [[test]]
 name = "facade_smoke"
 path = "../../tests/facade_smoke.rs"
@@ -62,6 +67,10 @@ path = "../../tests/backend_io.rs"
 [[test]]
 name = "render_pipeline"
 path = "../../tests/render_pipeline.rs"
+
+[[test]]
+name = "app_runtime"
+path = "../../tests/app_runtime.rs"
 
 # Std-only micro-benchmarks (facade imports only); `harness = false` keeps the
 # workspace free of a benchmarking dependency.

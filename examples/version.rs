@@ -22,7 +22,7 @@ fn main() {
         region.area()
     );
 
-    let event = Event::Resized { cols: 80, rows: 24 };
+    let event: Event = Event::Resize { cols: 80, rows: 24 };
     println!("event affects layout: {}", event.affects_layout());
 
     let error = Error::Layout("example: no constraints to solve yet".to_string());

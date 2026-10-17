@@ -19,11 +19,12 @@ documentation you actually enjoy reading.
 > **Status:** Phase 2 — Terminal Engine, implemented and verified. Synchronous
 > Crossterm integration, typed input/output, capability profiles, and a
 > deterministic headless backend are implemented. Phase 3 — Rendering Engine
-> (grapheme-aware cell buffer, damage tracking, differential output) is
-> implemented on the `phase3-rendering-engine` branch and awaits review of
-> [RFC-0004](docs/RFC/0004-rendering-engine.md). The framework is unreleased
-> (`0.0.0`); the application runtime, layout engine, and widgets are future
-> work. See [`docs/PHASE2_TERMINAL_ENGINE.md`](docs/PHASE2_TERMINAL_ENGINE.md)
+> (grapheme-aware cell buffer, damage tracking, differential output) is merged;
+> [RFC-0004](docs/RFC/0004-rendering-engine.md) still awaits a decision.
+> Phase 4 is in progress: flex layout, `View`, motion, and the first app
+> runtime slice ([RFC-0008](docs/RFC/0008-app-runtime.md) Draft — `Model`,
+> `App`, `jilva::run`, a counter example). The framework is unreleased
+> (`0.0.0`); components, grid layout, and widgets are future work. See [`docs/PHASE2_TERMINAL_ENGINE.md`](docs/PHASE2_TERMINAL_ENGINE.md)
 > for the supported terminal contract and limitations.
 
 Part of [`jilva-co`](https://github.com/jilva-co) — beautiful frameworks for developers.
@@ -55,6 +56,13 @@ or simplicity that fights you later. `jilva-rs` aims for a third option:
 - **Correctness underneath** — Unicode graphemes, double-width and emoji
   handling, truecolor with graceful degradation, mouse + keyboard, resize
   handling, testable rendering.
+
+**Direction: AI-agent and streaming CLIs first**
+([ADR-0004](docs/adr/0004-product-direction.md)). The goal is that a
+transcript, streaming text, a prompt input and an approval prompt are framework
+features, and that any session can be replayed frame-for-frame from a
+recording. None of these widgets or the recorder exist yet; they are planned
+work, not shipped features.
 
 Built with respect for `ratatui`, `cursive`, `Bubble Tea`, and `Textual` —
 each proved part of the idea. Jilva's bet is that the next step is taste:
@@ -106,6 +114,13 @@ resize the window, and exit with `q`, Escape, or Ctrl+C:
 
 ```bash
 cargo run -p jilva --example backend_demo
+```
+
+Run the first whole app — a counter on the app runtime (`+` / `-` change it,
+`q` or Ctrl+C quits):
+
+```bash
+cargo run -p jilva --example counter
 ```
 
 See the rendering engine work without a terminal (paint, diff, and the
@@ -199,8 +214,8 @@ move when the work is honestly done.
 |---|---|---|
 | 1 | Foundation | Complete |
 | 2 | Terminal Engine | Implemented and verified |
-| 3 | Rendering Engine | Implemented on branch; RFC-0004 awaiting decision |
-| 4 | Layout & Components | In progress (flex solver, `View`, motion and blending; RFC-0005/6/7 Draft) |
+| 3 | Rendering Engine | Merged; RFC-0004 awaiting decision |
+| 4 | Layout & Components | In progress (flex solver, `View`, motion and blending, app runtime slice A; RFC-0005/6/7/8 Draft) |
 | 5 | State & Interactivity | Planned |
 | 6 | Design System | Planned |
 | 7 | Alpha Release (`0.1.0`) | Planned |
