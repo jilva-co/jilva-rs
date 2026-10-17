@@ -1,8 +1,8 @@
 # Getting Started — jilva-rs
 
-> **Status:** Phase 1 — Foundation. There is no engine, renderer, or widget
-> set yet and nothing to run. This guide gets you to the point where you can
-> read the design, verify the workspace, and join the discussion.
+> **Status:** Phase 2 — Terminal Engine. The real terminal and headless
+> demonstrations are runnable. The renderer, application runtime, layout
+> engine, and widgets remain future milestones; nothing is released yet.
 
 ## 1. Clone the repo
 
@@ -19,7 +19,7 @@ cd jilva-rs
 - If you use `rustup`:
 
 ```bash
-rustup toolchain install stable
+rustup toolchain install 1.98.1 --component rustfmt --component clippy
 rustc --version   # expect 1.98.1
 ```
 
@@ -29,6 +29,10 @@ rustc --version   # expect 1.98.1
 cargo check --workspace
 cargo test --workspace
 ```
+
+In an interactive terminal, run `cargo run -p jilva --example backend_demo`
+and exit with `q`, Escape, or Ctrl+C. For CI and pipes, run
+`cargo run -p jilva --no-default-features --example headless_demo`.
 
 Per-crate while iterating:
 
@@ -48,12 +52,12 @@ Read in this order:
    contributors.
 3. [`API_DESIGN.md`](API_DESIGN.md) — API principles and the facade
    contract. Sketches are illustrative, not final.
-4. [`ROADMAP.md`](ROADMAP.md) — the 7 phases; Phase 1 is current.
+4. [`ROADMAP.md`](ROADMAP.md) — the 7 phases; Phase 2 is current.
 5. [`RFC/README.md`](RFC/README.md) — how design decisions get made.
 6. [`CONTRIBUTING.md`](../CONTRIBUTING.md) — design-stage rules and review
    conventions.
 7. [`DEVELOPMENT.md`](DEVELOPMENT.md) — day-to-day workspace workflow
-   (lands with the workspace scaffolding).
+   and terminal-restoration troubleshooting.
 
 Key rules to internalise early: `examples/` and `tests/` import only the
 `jilva` facade; `jilva-core` never names a backend and stays TTY-independent;

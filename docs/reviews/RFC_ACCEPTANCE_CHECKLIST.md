@@ -112,9 +112,10 @@ they are not silently counted as completed tests.
   rule 6. This does not require every dependency to use only the MIT license.
 - [x] **Phase-2 production continuation authorized**. Renderer, runtime,
   components and themes stay within their existing roadmap phases.
-- [ ] Phase-2 implementation completion: required Cargo gates, headless failure
+- [x] Phase-2 implementation completion: required Cargo gates, headless failure
   coverage, independent terminal audit and actual platform results. These are
-  **Phase-2 exit gates**, not RFC acceptance requirements already satisfied.
+  **Phase-2 exit gates**, verified in `PHASE2_CONTINUATION_REPORT.md` and the
+  independent audit. They were not preconditions silently assumed at acceptance.
 - [ ] Grapheme-capable cell replacement and width/segmentation authorities —
   **Phase-3 exit obligation**. `Cell.symbol: char` remains provisional and
   must not spread into terminal output APIs or scalar-cell goldens.
