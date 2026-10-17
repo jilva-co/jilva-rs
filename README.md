@@ -56,6 +56,13 @@ or simplicity that fights you later. `jilva-rs` aims for a third option:
   handling, truecolor with graceful degradation, mouse + keyboard, resize
   handling, testable rendering.
 
+**Direction: AI-agent and streaming CLIs first**
+([ADR-0004](docs/adr/0004-product-direction.md)). The goal is that a
+transcript, streaming text, a prompt input and an approval prompt are framework
+features, and that any session can be replayed frame-for-frame from a
+recording. None of these widgets or the recorder exist yet; they are planned
+work, not shipped features.
+
 Built with respect for `ratatui`, `cursive`, `Bubble Tea`, and `Textual` —
 each proved part of the idea. Jilva's bet is that the next step is taste:
 defaults, docs, and craft. Jilva positions itself as one more experiment in

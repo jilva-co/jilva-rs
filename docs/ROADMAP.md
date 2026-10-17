@@ -137,10 +137,14 @@ Phase-3 branch; RFC-0005 Draft, `docs/RFC/0005-layout-solver.md`):
   `Lerp`, `Transition` (injected time, retarget, reduced motion) — the first
   features of the beauty-first direction in `docs/adr/0004-product-direction.md`
 - [ ] Grid tracks, measure/arrange protocol (intrinsic sizing), text wrapping
-- [ ] Component contract (RFC-2 reflected in code), invalidation wiring
-- [ ] Dashboard dogfood app (table, chart, tabs, status bar) driving the
-  remaining widgets (ADR-0004)
-- [ ] Maintainer decisions on RFC-0005, RFC-0006 and RFC-0007
+- [ ] App runtime and component contract (RFC-2 reflected in code),
+  invalidation wiring — planned in RFC-0008 Draft
+  (`docs/RFC/0008-app-runtime.md`): slice A counter app, slice B two
+  focusable counter components
+- [ ] Agent-chat dogfood app (transcript, streaming text, prompt input,
+  tool-call card, approval prompt), offline and scripted, driving the
+  remaining widgets (ADR-0004, amended 2026-10-17; replaces the dashboard)
+- [ ] Maintainer decisions on RFC-0005, RFC-0006, RFC-0007 and RFC-0008
 
 Original scope, for reference:
 

@@ -15,7 +15,13 @@ an RFC amendment (see `docs/ARCHITECTURE.md` §3.1).
   `Buffer::map_attrs`, `View::{gradient, gradient_text, tint}` with `Backdrop`,
   and `Easing`, `Lerp`, `Transition` (injected time, retargeting, reduced
   motion); `motion_demo` example. ADR-0004 records the beauty-first product
-  direction.
+  direction, amended by the owner on 2026-10-17: AI-agent and streaming CLIs
+  first, reproducibility as the second headline, an offline agent-chat demo
+  instead of the dashboard.
+- RFC-0008 Draft (`docs/RFC/0008-app-runtime.md`): plan for the app runtime
+  (sans-IO `App`, `Model`, `Outcome`/`Change`, `Effects`, terminal driver) and
+  the first `Component` slice; counter and two-counter examples. Not
+  implemented.
 - `View` (RFC-0006 Draft): an owned, geometry-free frame description with text
   and spans, row/column, overlay, padding and borders; `View::paint` and
   `Renderer::render` (describe → paint → diff); `view_demo` example.
