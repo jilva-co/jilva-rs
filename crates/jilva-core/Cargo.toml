@@ -8,7 +8,7 @@ repository.workspace = true
 description = "Terminal-independent events, capabilities, output data, and framework foundations for Jilva"
 
 [dependencies]
-# Phase-3 renderer authorities (docs/RFC/0004-rendering-engine.md §4).
+# Renderer authorities (docs/README.md#rendering-and-layout).
 # `unicode-width` decides how many terminal cells a grapheme occupies;
 # `unicode-segmentation` decides where graphemes begin and end. Both are
 # pure data-table crates: no I/O and no transitive dependencies. `unicode-width` runs without its `cjk` feature, so

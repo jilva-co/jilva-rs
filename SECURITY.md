@@ -1,30 +1,20 @@
-# Security Policy — jilva-rs
+# Security policy
 
-## Supported versions
+Jilva is unreleased (`0.0.0`); no published version has security support.
 
-`jilva-rs` has no release yet. Nothing here is production-ready and there is
-no security support to offer — yet.
+Report vulnerabilities privately through the
+[repository security tab](https://github.com/jilva-co/jilva-rs/security)
+using **Report a vulnerability**. Do not open a public issue.
+Include the commit, affected component, impact, reproduction steps, and
+whether exploitation is already public.
 
-| Version | Status |
-|---------|--------|
-| Unreleased (`main`) | Design stage — do not use in production |
+We aim to acknowledge reports within 72 hours and request 90 days for
+coordinated disclosure of serious issues.
+The policy covers workspace crates, release artifacts, and shipped examples.
+Forks, third-party themes/plugins, and social engineering are outside scope.
+The [organization security policy](https://github.com/jilva-co/.github/blob/main/SECURITY.md)
+also applies.
 
-Once `0.1.0` ships, this table will list supported versions (latest minor
-of `0.x`, then latest stable after `1.0`).
-
-## Reporting a vulnerability
-
-**Do not open a public issue.**
-
-1. Go to the [`jilva-rs` Security tab](https://github.com/jilva-co/jilva-rs/security) → **Report a vulnerability** (private).
-2. Include: commit hash, affected component, impact, reproduction steps, whether exploitation is already public.
-
-We aim to acknowledge within 72 hours. Please allow 90 days coordinated
-disclosure for serious issues.
-
-General org policy: [`jilva-co/.github SECURITY.md`](https://github.com/jilva-co/.github/blob/main/SECURITY.md).
-
-## Scope
-
-In scope once code exists: `src/`, release artifacts, examples that ship with
-releases. Out of scope: forks, third-party themes/plugins, social engineering.
+Terminal cleanup, hostile output validation, resize handling, and capability
+limits are described in the [project guide](docs/README.md#terminal) and
+tested in the source tree. Recordings are planned and must be opt-in.

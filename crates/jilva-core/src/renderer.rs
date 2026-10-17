@@ -1,5 +1,5 @@
 //! The rendering engine: cell buffer, diff, and damage tracking
-//! (`docs/ARCHITECTURE.md` §3.7, `docs/RFC/0004-rendering-engine.md`).
+//! (`docs/README.md#rendering-and-layout`).
 //!
 //! ```text
 //!  paint ──► back Buffer ──► diff(front, back, damage, caps) ──► Vec<OutputCommand>

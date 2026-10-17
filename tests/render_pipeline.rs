@@ -2,7 +2,7 @@
 //!
 //! Golden-output tests (frame in, expected instruction stream out) run against
 //! the headless test double: no TTY, no timing, fully deterministic. They
-//! import `jilva` exclusively, keeping `docs/ARCHITECTURE.md` §7 honest.
+//! import `jilva` exclusively, keeping `docs/README.md#architecture` honest.
 
 use jilva::{
     Backend, Buffer, Damage, DiffOptions, OutputCommand, Rect, Renderer, ResolvedAttributes,

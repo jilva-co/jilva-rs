@@ -1,10 +1,10 @@
-//! The run driver (`docs/RFC/0008-app-runtime.md` §4).
+//! The run driver (`docs/README.md#architecture`).
 //!
 //! The driver owns exactly three things: the terminal session, the wall
 //! clock, and the event-pump loop. It reads input from a [`Backend`], hands
 //! it with the elapsed time to a core-defined [`Driven`] runtime, and writes
 //! back the output commands it returns. Dispatch, update, view, layout and
-//! paint all stay in `jilva-core` (`docs/ARCHITECTURE.md` §6 rules 1 and 3):
+//! paint all stay in `jilva-core`:
 //! the `D: Driven` parameter is opaque here and never inspected.
 
 use std::time::{Duration, Instant};

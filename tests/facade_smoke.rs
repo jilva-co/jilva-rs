@@ -2,7 +2,7 @@
 //!
 //! These tests import the facade crate exclusively — never `jilva-core` or
 //! `jilva-terminal` directly — so anything they need must be reachable
-//! through the facade (keeps `docs/ARCHITECTURE.md` §7 honest).
+//! through the facade (keeps `docs/README.md#architecture` honest).
 //!
 //! The test backend uses no OS terminal and has no injected failures here.
 

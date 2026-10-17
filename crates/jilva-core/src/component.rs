@@ -1,5 +1,5 @@
 //! Components: reusable UI units with framework-owned state
-//! (`docs/ARCHITECTURE.md` §3.3, RFC-2, `docs/RFC/0008-app-runtime.md` §5).
+//! (`docs/README.md#runtime`).
 //!
 //! A [`Component`] is a plain value — its configuration, like a label —
 //! placed into a [`View`] with [`View::component`]. The runtime gives every
@@ -18,7 +18,7 @@ use crate::events::{Change, Event, InputEvent, Outcome};
 use crate::lifecycle::{Context, Effects, FollowUps};
 use crate::view::View;
 
-/// A reusable UI unit whose state lives in a framework-owned slot (RFC-2 §3).
+/// A reusable UI unit whose state lives in a framework-owned slot.
 ///
 /// `Self` is the component's *configuration*: compared between frames
 /// (`PartialEq`) so an unchanged screen is recognisably unchanged, and
@@ -134,7 +134,7 @@ pub trait Component: Clone + PartialEq + 'static {
     }
 }
 
-/// An explicit identity for a view among its siblings (RFC-2 §2).
+/// An explicit identity for a view among its siblings.
 ///
 /// Put a key on the outermost view of each item in a dynamic list, usually a
 /// domain id: the component state then follows the key when items reorder,
@@ -195,7 +195,7 @@ pub(crate) enum Segment {
     Child(u32),
     /// A keyed child, wherever it sits among its siblings.
     Key(Key),
-    /// A duplicate-keyed child: gets fresh state every frame (RFC-2 §2).
+    /// A duplicate-keyed child: gets fresh state every frame.
     Stateless(u32),
     /// The root of a component's own view.
     Inside,

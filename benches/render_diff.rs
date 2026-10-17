@@ -3,7 +3,7 @@
 //! Run with `cargo bench -p jilva --bench render_diff`. Numbers are
 //! machine-relative and meant for ordering scenarios and catching
 //! regressions, not for publishing as framework performance claims
-//! (`docs/RFC/0004-rendering-engine.md` §9).
+//! (`docs/README.md#performance-and-release-evidence`).
 
 use std::hint::black_box;
 use std::time::{Duration, Instant};

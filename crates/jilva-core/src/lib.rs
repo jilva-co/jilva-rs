@@ -1,18 +1,13 @@
 //! Framework foundations for `jilva-rs`.
 //!
-//! Phase 2 added typed terminal events, resolved output instructions,
-//! capability profiles, and pure validation/versioning helpers. Phase 3 adds
-//! the rendering engine: a grapheme-aware cell [`Buffer`], damage tracking,
-//! and a pure [`diff`] that turns two buffers into an instruction stream.
-//! A first Phase 4 slice adds a one-dimensional flex [`Layout`] solver and an
-//! owned [`View`] description with a paint pass. The runtime slice
-//! (RFC-0008 Draft) adds the [`Model`] trait, the sans-IO [`App`] runtime
-//! that a terminal driver pumps through [`Driven`], and [`Component`]s with
-//! framework-owned state slots, identity and focus. There is no grid layout,
-//! theme implementation, or widget library here yet.
+//! Typed events, capabilities, output instructions, a grapheme-aware [`Buffer`],
+//! pure [`diff`], flex [`Layout`], and owned [`View`] descriptions.
+//! [`Model`] and the sans-IO [`App`] runtime run through [`Driven`];
+//! [`Component`]s have framework-owned slots, identity, and focus.
+//! Grid, themes, and a widget library are planned.
 //!
 //! Platform-agnostic: this crate performs no terminal I/O and names no
-//! backend. See `docs/ARCHITECTURE.md` §3 and §6 for the boundary contract.
+//! backend. See `docs/README.md#architecture` for the boundary contract.
 
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]

@@ -1,4 +1,4 @@
-//! App lifecycle (`docs/ARCHITECTURE.md` §3.2, `docs/RFC/0008-app-runtime.md`).
+//! App lifecycle (`docs/README.md#runtime`).
 //!
 //! [`LifecycleState`] is the state vocabulary. The runtime slice adds the
 //! [`Model`] trait an application implements and the sans-IO [`App`]

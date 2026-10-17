@@ -1,14 +1,14 @@
 //! Motion: easing curves and time-driven transitions
-//! (`docs/RFC/0007-motion-and-blending.md`).
+//! (`docs/README.md#current-implementation`).
 //!
 //! Everything here is a pure function of an **injected** time value, a
-//! [`Duration`] measured from any epoch the caller chooses (RFC-2 §4: `Tick(now)`
-//! carries plain data, never a clock). There is no global clock, no timer, no
+//! [`Duration`] measured from any epoch the caller chooses.
+//! There is no global clock, no timer, no
 //! thread, and no async: tests drive time by hand and get bit-identical
-//! frames, and an idle app that is not animating costs nothing.
+//! values. The runtime does not yet schedule animation wakeups.
 //!
 //! ```text
-//! Tick(now) ─► transition.value_at(now) ─► View ─► paint ─► diff (only changed cells)
+//! injected now ─► transition.value_at(now) ─► View ─► paint ─► diff
 //! ```
 //!
 //! Reduced motion (`TerminalCapabilities::reduced_motion`) is honoured by

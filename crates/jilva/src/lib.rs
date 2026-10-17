@@ -1,16 +1,13 @@
 //! Public facade for `jilva-rs`: the only crate users depend on directly.
 //!
-//! Phase 2 exposes synchronous terminal sessions, typed input and output,
-//! capability snapshots, and a deterministic headless backend. Phase 3 adds
-//! the rendering engine: a grapheme-aware cell [`Buffer`], damage tracking,
-//! and a pure [`diff`] / [`Renderer`] that produce backend instruction
-//! streams, and a flex [`Layout`] that splits a [`Rect`] into regions. The
-//! runtime slice (RFC-0008 Draft) adds the [`Model`] trait, the sans-IO
-//! [`App`] runtime, and [`run_with`] (plus `run` with the default
-//! `crossterm` feature) to drive it; [`Component`]s placed with
-//! [`View::component`] get framework-owned state, focus and Tab traversal.
-//! This facade contains re-exports and documentation; grid layout and
-//! widgets belong to later milestones.
+//! Includes synchronous terminal sessions, typed input/output, capability
+//! snapshots, and a headless backend. A grapheme-aware [`Buffer`], pure
+//! [`diff`] / [`Renderer`], and flex [`Layout`] provide rendering.
+//! [`Model`] and the sans-IO [`App`] runtime are driven by [`run_with`]
+//! (or `run` with the default `crossterm` feature). [`Component`]s placed
+//! with [`View::component`] get framework-owned state and Tab focus.
+//! Themes, grid, ready-made widgets, external streaming, and recording are
+//! planned. See `docs/README.md` for the implementation and design status.
 //!
 //! # A whole app
 //!
@@ -95,9 +92,8 @@ pub use jilva_terminal::test_double::{FailOp, TestDoubleBackend};
 
 /// Returns the facade version users see.
 ///
-/// Still `0.0.0`: unreleased. Tracks the workspace
-/// version so the facade semver promise (`docs/API_DESIGN.md` §2) has one
-/// observable source of truth from day one.
+/// Still `0.0.0`: unreleased. Tracks the workspace package metadata so the
+/// public version has one source of truth.
 ///
 /// # Example
 ///

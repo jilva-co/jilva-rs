@@ -31,7 +31,7 @@ pub struct EnvSnapshot {
     /// Value of `COLORFGBG` when readable as Unicode.
     pub colorfgbg: Option<String>,
     /// Any presence of `NO_COLOR`, including an empty or non-Unicode value.
-    /// This is Jilva's stronger RFC-0003 policy, not the informal standard's
+    /// This is Jilva's presence-based policy, not the informal standard's
     /// nonempty-only condition.
     pub no_color_present: bool,
 }

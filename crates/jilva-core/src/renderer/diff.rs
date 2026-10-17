@@ -1,5 +1,5 @@
 //! Diffing and damage tracking: buffers in, instruction stream out
-//! (RFC-0004 §5–§6).
+//! (`docs/README.md#rendering-and-layout`).
 //!
 //! [`diff`] is a pure function of `(previous buffer, next buffer, damage,
 //! capability profile, options)`. It touches no terminal and reads no ambient

@@ -1,4 +1,4 @@
-//! Style token model (`docs/ARCHITECTURE.md` §3.8).
+//! Style token model (`docs/README.md#theming-contract`).
 //!
 //! **Foundation status:** only the semantic token vocabulary is implemented.
 //! The theme schema, token-to-attribute resolution, curated default theme,
@@ -9,8 +9,8 @@
 ///
 /// Names are illustrative of intent (`accent`, `muted`, …), never colours.
 /// Concrete attributes for each token at each
-/// [`ColorTier`](crate::capabilities::ColorTier) are RFC-3
-/// detail; this enum fixes *where* tokens live so that decision has a home.
+/// [`ColorTier`](crate::capabilities::ColorTier) belong to the planned theme
+/// resolver. This placeholder is smaller than the accepted 14-role design.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub enum SemanticToken {

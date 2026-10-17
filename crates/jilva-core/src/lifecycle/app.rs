@@ -1,4 +1,4 @@
-//! The sans-IO application runtime (`docs/RFC/0008-app-runtime.md` §2–§3).
+//! The sans-IO application runtime (`docs/README.md#runtime`).
 //!
 //! [`App`] turns (input, time) into output commands. It performs no I/O,
 //! reads no clock and names no backend; a driver outside core pumps it
@@ -20,7 +20,7 @@ use crate::renderer::Renderer;
 use crate::view::View;
 
 /// The application root: Elm-shaped state with a fallible `update` and a
-/// pure `view` (RFC-2 §1).
+/// pure `view`.
 ///
 /// `update` receives every event — keys, resizes, follow-up messages — and
 /// reports both whether it consumed the event and what changed through
@@ -96,11 +96,12 @@ pub trait Model {
     fn view(&self, cx: &Context) -> Result<View>;
 }
 
-/// The bounded effect queue an update receives (RFC-2 §1 rule 1).
+/// The follow-up queue an update receives.
 ///
 /// Effects are data: the runtime performs them after the update returns,
 /// never reentrantly. Follow-up messages run FIFO in the same batch, before
-/// the next `view`.
+/// the next `view`. The runtime bounds processed follow-ups, not the queue's
+/// allocated size; producers must not enqueue unbounded payloads.
 ///
 /// # Example
 ///
@@ -163,7 +164,7 @@ impl<M> Effects<M> {
 
 /// Counts follow-up messages across one source event — model and components
 /// together — so a runaway chain reports [`Error::UpdateOverflow`] instead
-/// of hanging (RFC-2 §1 rule 4).
+/// of hanging.
 pub(crate) struct FollowUps {
     used: usize,
     limit: usize,
@@ -267,7 +268,7 @@ impl Context {
 }
 
 /// Something a terminal driver can pump: input and time in, output
-/// commands out (`docs/RFC/0008-app-runtime.md` §3).
+/// commands out (`docs/README.md#runtime`).
 ///
 /// Object-safe on purpose: a driver needs no knowledge of the model type.
 pub trait Driven {
@@ -305,9 +306,10 @@ struct Session {
 
 /// The sans-IO runtime around a [`Model`].
 ///
-/// Implements RFC-2 §1: one source event → updates along its dispatch path
-/// → FIFO follow-ups → at most one `view` and one diff. Components placed in
-/// the model's view get framework-owned state slots; keys go to the focused
+/// One source event → updates along its dispatch path → FIFO follow-ups
+/// → at most one submitted frame. Focus settling may describe the view
+/// again before painting. Components in the model's view get framework-owned
+/// state slots; keys go to the focused
 /// component, then its ancestors, then the model; resizes go to the model
 /// and then every component.
 ///
@@ -403,7 +405,7 @@ impl<M: Model> App<M> {
         Ok(frame)
     }
 
-    /// RFC-2 §5 under-reporting check: a batch that reported no change must
+    /// Under-reporting check: a batch that reported no change must
     /// describe the same view as the last frame (with the same context, so
     /// only model changes count). Debug builds only.
     #[cfg(debug_assertions)]
