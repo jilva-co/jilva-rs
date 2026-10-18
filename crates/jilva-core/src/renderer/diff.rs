@@ -215,7 +215,54 @@ pub fn diff(
             options,
         };
         for &(start, end) in &spans {
-            diff_span(&mut emitter, &row, start, end);
+            if old_row[usize::from(start)..usize::from(end)]
+                != new_row[usize::from(start)..usize::from(end)]
+            {
+                diff_span(&mut emitter, &row, start, end);
+            }
+        }
+    }
+    emitter.finish()
+}
+
+/// Diffs and synchronises the renderer's equally sized buffers in one row
+/// traversal. Unchanged spans need neither emission nor cloning. Raw cells
+/// must still be copied when their colours collapse to the same terminal
+/// colour: the front buffer also records the latest undowngraded frame.
+pub(super) fn diff_and_sync(
+    previous: &mut Buffer,
+    next: &Buffer,
+    damage: &Damage,
+    caps: &TerminalCapabilities,
+    options: &DiffOptions,
+    spans: &mut Vec<(u16, u16)>,
+) -> Vec<OutputCommand> {
+    debug_assert_eq!(previous.area(), next.area());
+    let mut emitter = Emitter::new(next.width());
+    let (first, last) = row_bounds(damage, next.height());
+    for y in first..last {
+        let (Some(old_row), Some(new_row)) = (previous.row_mut(y), next.row(y)) else {
+            continue;
+        };
+        damage_spans(damage, y, old_row, new_row, spans);
+        for &(start, end) in spans.iter() {
+            let range = usize::from(start)..usize::from(end);
+            if old_row[range.clone()] == new_row[range.clone()] {
+                continue;
+            }
+            diff_span(
+                &mut emitter,
+                &Row {
+                    y,
+                    old: old_row,
+                    new: new_row,
+                    caps,
+                    options,
+                },
+                start,
+                end,
+            );
+            old_row[range.clone()].clone_from_slice(&new_row[range]);
         }
     }
     emitter.finish()

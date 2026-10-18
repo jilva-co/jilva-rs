@@ -1,83 +1,83 @@
 120x36
 
-    ◆ jilva  /  studio                                                                  jilva-rs   /   LOCAL PREVIEW
+      JILVA                                                                                      FRAMEWORK WORKBENCH
 
-    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    EXAMPLES                Counter
 
-    THE DESIGN STUDIES          STUDY 01   /   RHYTHM
+                            Local component state. One key, one update, one frame.
+    > 1  Counter
 
-    > 01  Rhythm                Make room for good work.
-                                A little less noise. A lot more room to think.
-      02  Colour
+                            ┌──────────────────────────────────────────────────────────────────────────────────────┐
+                            │                                                                                      │
+      2  Layout             │   Value: 0                                                                           │
+                            │                                                                                      │
+                            │                                                                                      │
+                            │                                                                                      │
+      3  Unicode            │                                                                                      │
+                            │                                                                                      │
+                            │                                        ██████                                        │
+                            │                                        ██████                                        │
+                            │                                        ██  ██                                        │
+                            │                                        ██  ██                                        │
+                            │                                        ██  ██                                        │
+                            │                                        ██  ██                                        │
+                            │                                        ██  ██                                        │
+                            │                                        ██  ██                                        │
+                            │                                        ██████                                        │
+                            │                                        ██████                                        │
+                            │                                                                                      │
+                            │                                                                                      │
+                            │                                                                                      │
+                            │                                                                                      │
+                            │ + / - change   Enter +1   r reset                                                    │
+    1-3 choose              │                                                                                      │
+    Tab to interact         └──────────────────────────────────────────────────────────────────────────────────────┘
 
-      03  Focus
-                                  DESIGN REVIEW                                   01 / 03
-
-    APPEARANCE                    Clarity before decoration.                                         ▄██████▄
-                                  Every element earns its place.                                   ▄████████▀
-    ◐  Electric dusk                                                                              ▄████▀   ▄▄
-       t to switch                                                                              ███▀   ▄█████
-                                  ✓  One clear focal point                                        ▀   ▄█████▀
-                                                                                                     ▀█████▀
-                                  ✓  Space that follows the content                                     ▀▀
-
-                                  ✓  Details, only when you need them                             J I L V A
-
-
-
-
-
-
-
-    A local design preview.         Keep this direction                                                 [ Enter ]
-    Yours to explore.
-                                Selections stay with each study while you explore.
-
-    1–3 study   ↑↓ choose   Tab focus   Enter select                                                t theme   q quit
+    1-3 example   Tab focus   +/- change   r reset   t theme   q quit
 
 
 80x24
 
-  ◆ jilva  /  studio                              jilva-rs   /   LOCAL PREVIEW
+   JILVA                                                    FRAMEWORK WORKBENCH
 
-  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ >1 Counter                  2 Layout                  3 Unicode
 
-  > 01  Rhythm                02  Colour                03  Focus
+ Counter
 
-  Make room for good work.
-  A little less noise. A lot more room to think.
-
-
-    DESIGN REVIEW                                                    01 / 03
-
-    ✓  One clear focal point
-    ✓  Space that follows the content
-    ✓  Details, only when you need them
+ Local component state. One key, one update, one frame.
 
 
+ ┌────────────────────────────────────────────────────────────────────────────┐
+ │   Value: 0                                                                 │
+ │                                                                            │
+ │                                    ███                                     │
+ │                                    █ █                                     │
+ │                                    █ █                                     │
+ │                                    █ █                                     │
+ │                                    ███                                     │
+ │                                                                            │
+ │ + / - change   Enter +1   r reset                                          │
+ └────────────────────────────────────────────────────────────────────────────┘
 
-      Keep this direction                                         [ Enter ]
-
-
-  1–3 study   ↑↓ choose   Tab focus   Enter select            t theme   q quit
+ 1-3 example   Tab focus   +/- change   r reset   t theme   q quit
 
 
 40x18
- ◆ jilva  /  studio               LOCAL
+   JILVA                      WORKBENCH
 
- ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ >1 Counter    2 Layout     3 Unicode
 
- > 01  Rhythm   02  Colour   03  Focus
+ Counter
+ Local component state. One key, one
+ update, one frame.
+ ┌────────────────────────────────────┐
+ │   Value: 0                         │
+ │                                    │
+ │                                    │
+ │                 0                  │
+ │                                    │
+ │                                    │
+ │ +/- change  Enter +1  r reset      │
+ └────────────────────────────────────┘
 
- Make room for good work.
- A little less noise. A lot more room
- to think.
-
-   Clarity before decoration.
-
-
-
-     Keep this direction   [ Enter ]
-
-
- 1–3 study  Tab focus  t theme  q quit
+ 1-3 demo  Tab focus  t theme  q quit

@@ -11,8 +11,11 @@ a design amendment (see [design decisions](docs/README.md#design-decisions)).
 
 ### Changed
 
-- Expressive built-in palettes: Electric dusk (lime/cyan, deep indigo) and Prism
-  paper (violet/blue); contrasting selection and primary-action surfaces.
+- Black-and-white built-in palettes with neutral surfaces, readable contrast,
+  and structural focus/selection indicators across all colour tiers.
+- Renderer presentation combines diffing and front-buffer synchronization in
+  one pass over damaged rows, skipping unchanged spans and their grapheme
+  clones. `Buffer::clone_from` reuses existing cell storage.
 - 256-colour RGB conversion chooses the nearest stable cube/gray entry, with
   lower-index ties, preserving neutral depth instead of collapsing to black.
 - Theme integration: `Context` is now `Clone` instead of `Copy`; `new` and
@@ -32,9 +35,13 @@ a design amendment (see [design decisions](docs/README.md#design-decisions)).
 
 - `View::wrap` with span-preserving ASCII-space/grapheme wrapping;
   `View::padding_xy` and `Rect::inner_xy` for balanced terminal-cell spacing.
-- Offline Jilva Studio replaces the token chart: responsive design studies,
-  controlled selection, visible focus, and SVG/text exports via `--snapshots`.
-  Geometry fixtures, cross-tier contrast checks, and resize/state regressions.
+- Offline Jilva Studio is a working framework playground: a component-owned
+  counter, adjustable flex split, Unicode wrapping, keyboard focus, and reset.
+  State survives example switches, theme changes, and small-window resizing.
+  `--snapshots` exports SVG/text frames anchored to actual terminal columns.
+- Rendering benchmarks now cover retained presentation, heap-backed emoji,
+  and paint + present, reporting medians of five warmed batches. Regressions
+  cover raw colour synchronization, disjoint damage and wide/heap graphemes.
 - Semantic themes: 14 canonical roles (original `Selected` spelling preserved),
   `Theme::{dark,light}`, partial overrides/extensions, `StyleState` overlays,
   shared `ResolvedTheme` caches, `Context::{style,style_with}`,

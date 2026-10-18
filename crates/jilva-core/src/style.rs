@@ -206,12 +206,13 @@ impl Default for Theme {
 }
 
 impl Theme {
-    /// The curated dark theme, also the default.
+    /// The monochrome dark theme, also the default. Status roles use neutral
+    /// ink; applications should give statuses explicit labels or symbols.
     #[must_use]
     pub fn dark() -> Self {
         Self::builtin(false)
     }
-    /// The curated light theme. Never chosen from an unknown background hint.
+    /// The monochrome light theme. Never chosen from an unknown background hint.
     #[must_use]
     pub fn light() -> Self {
         Self::builtin(true)
@@ -346,35 +347,35 @@ impl Theme {
             highlight,
         ) = if light {
             (
-                (247, 246, 252),
-                (236, 236, 248),
-                (222, 223, 242),
-                (35, 32, 55),
-                (84, 80, 111),
-                (153, 150, 179),
-                (83, 44, 190),
-                (25, 85, 60),
-                (114, 79, 17),
-                (165, 44, 88),
-                (42, 84, 160),
-                (83, 44, 190),
-                (236, 220, 176),
+                (248, 248, 248),
+                (236, 236, 236),
+                (224, 224, 224),
+                (20, 20, 20),
+                (80, 80, 80),
+                (125, 125, 125),
+                (0, 0, 0),
+                (36, 36, 36),
+                (36, 36, 36),
+                (0, 0, 0),
+                (36, 36, 36),
+                (0, 0, 0),
+                (210, 210, 210),
             )
         } else {
             (
-                (20, 20, 30),
-                (32, 32, 46),
-                (38, 38, 50),
-                (246, 246, 239),
-                (174, 177, 196),
-                (96, 99, 123),
-                (211, 250, 113),
-                (148, 229, 184),
-                (255, 203, 115),
-                (255, 154, 180),
-                (142, 216, 250),
-                (211, 250, 113),
-                (74, 62, 39),
+                (0, 0, 0),
+                (14, 14, 14),
+                (24, 24, 24),
+                (245, 245, 245),
+                (172, 172, 172),
+                (92, 92, 92),
+                (255, 255, 255),
+                (224, 224, 224),
+                (224, 224, 224),
+                (255, 255, 255),
+                (204, 204, 204),
+                (255, 255, 255),
+                (40, 40, 40),
             )
         };
         let ink = |fg| ResolvedAttributes::new(rgb(fg), rgb(canvas));
@@ -780,6 +781,26 @@ mod tests {
     }
 
     #[test]
+    fn built_in_palettes_use_neutral_ink_on_every_colour_tier() {
+        for theme in [Theme::dark(), Theme::light()] {
+            for tier in [
+                ColorTier::Truecolor,
+                ColorTier::Palette256,
+                ColorTier::Ansi16,
+            ] {
+                let resolved = theme.resolve(&profile(tier));
+                for role in SemanticToken::ALL {
+                    let attrs = resolved.style(role);
+                    for color in [attrs.fg, attrs.bg] {
+                        let (r, g, b) = color.to_rgb((0, 0, 0));
+                        assert_eq!((r, r), (g, b), "{} {tier:?} {role:?}", theme.name());
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
     fn theme_role_state_matrix_regression_snapshots() {
         // FNV-1a fingerprints of the complete readable Debug attribute matrix:
         // 14 roles x 17 effective states, dark/light x all four terminal tiers.
@@ -813,13 +834,13 @@ mod tests {
         assert_eq!(
             actual,
             [
-                15845582647675115167,
-                9076843533776271062,
-                6152017087749698915,
+                788006341755008680,
+                3184107769486334682,
+                8200188525395070630,
                 1622133808147984732,
-                12764583789862103536,
-                7141424972439665850,
-                3647422203970561593,
+                17207393620597066198,
+                5046028198095812391,
+                12362220910857234674,
                 1622133808147984732,
             ]
         );
