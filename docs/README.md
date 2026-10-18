@@ -1,6 +1,6 @@
 # Jilva project guide
 
-Updated **2026-10-17** for semantic themes and the visual baseline. This is the single maintained
+Updated **2026-10-18** for renderer optimization and the framework workbench. This is the single maintained
 design and planning document. [Quick start](../README.md#try-it) ·
 [Architecture](#architecture) · [Comparison](#framework-comparison) ·
 [Plan](#development-plan) · [Decisions](#design-decisions).
@@ -17,7 +17,8 @@ design and planning document. [Quick start](../README.md#try-it) ·
 | [Style](../crates/jilva-core/src/style.rs) | 14 semantic roles, dark/light themes, partial overrides, extensions, composed states, cached tier resolution, runtime switching | Configurable overlay definitions, theme-file adapters |
 | [Motion](../crates/jilva-core/src/motion.rs) | Easing, retargetable transitions, injected time, reduced-motion sampling | Runtime scheduling and theme/component integration |
 
-Studio demonstrates the visual baseline; counters exercise state and focus.
+Studio exercises component-owned state, adjustable layout, Unicode wrapping,
+focus, and resizing in a monochrome workbench; counters provide smaller examples.
 Scripted output equality is tested; no session file recorder/replayer exists.
 See [app tests](../tests/app_runtime.rs), [component tests](../tests/components.rs),
 and [render tests](../tests/render_pipeline.rs) for executable evidence.
@@ -118,8 +119,8 @@ terminal-default text; pass semantic attributes to styled text, spans, and borde
 Missing extensions return Text plus an explicit `missing_extension` diagnostic.
 Disabled is visual state, so widgets must still reject disabled interaction.
 Mono retains supported reverse video; widgets need structural markers for
-independent focus/selection indications. Studio uses `>` for focus and `·` for
-selection, plus a filled primary action that remains distinct in mono.
+independent focus/selection indications. Studio uses a filled row for selection;
+its live component uses a heavy border and a `>` marker for focus.
 
 `SemanticToken::Selected` retains its original name and resolves as Selection.
 Migration: `Context` is now cheaply `Clone` rather than `Copy`, sharing the
@@ -127,7 +128,7 @@ resolved cache; use `.clone()` when retaining a context. Its `new` and
 `with_focused` are no longer const; the latter borrows the source context.
 The initial overlays have fixed transforms; configurable transforms remain
 follow-up work. [Theming tests](../tests/theming.rs) cover switching/state/focus
-and all terminal tiers. `themes --headless` exercises three studies and sizes
+and all terminal tiers. `themes --headless` exercises three working examples and sizes
 across all tiers. `--snapshots DIR` exports actual renderer commands as SVG/text;
 SVG pixels assume a monospace font and the documented standard ANSI palette,
 so physical emulator/font checks remain separate.
@@ -136,14 +137,17 @@ The value-based overrides and role vocabulary take cues from
 [Textual theme variables](https://textual.textualize.io/guide/design/);
 this implementation keeps resolution pure and adds no parser dependency.
 
-The visual baseline is expressive: Electric dusk uses lime/cyan on deep indigo;
-Prism paper uses violet/blue. Built-in text roles meet a 4.5:1 contrast floor on
+The default visual language uses black, white, and neutral grays. Status roles
+need explicit labels or symbols; colour is not their sole signal. Built-in text
+roles meet a 4.5:1 contrast floor on
 Background/Surface/Overlay in truecolor, 256-colour, and the standard ANSI16
 table; user-remapped ANSI colours can differ. Selection/cursor/highlight pairs
 are checked too. 256-colour conversion chooses the nearest stable cube or gray
 entry, preserving near-neutral surface depth. The [Studio](../examples/themes.rs)
-uses semantic endpoints for its shimmer, controlled components, and stable keys.
-Its geometry fixture covers 120×36, 80×24, and 40×18, including compact actions.
+uses semantic attributes and stable keys. Counter, flex split, and wrapping
+settings live in one framework-owned component state slot. Switching examples,
+palettes, or viewport sizes preserves that state and focus, including the tiny
+window fallback. Its geometry fixture covers 120×36, 80×24, and 40×18.
 
 ## Framework comparison
 
@@ -219,9 +223,37 @@ frames. Never promise an original-session match after changing its inputs.
 
 ## Performance and release evidence
 
-The existing [diff benchmark](../benches/render_diff.rs) measures explicit
-buffers/damage, not end-to-end streaming. Proposed budgets below are engineering
-targets; baseline them on a named reference machine before claiming success.
+The [render benchmark](../benches/render_diff.rs) measures pure diffing,
+retained `Renderer::present`, and paint + present. It does not include app update,
+terminal I/O, or streaming. Proposed budgets below are engineering targets;
+baseline them on a named reference machine before claiming success.
+
+Presentation now emits and synchronizes each damaged row together. Raw-equal
+spans skip both work and grapheme cloning; raw changes still synchronize when
+their colours downgrade to an identical visible colour. Invalidation, resize,
+and capability changes retain full redraw behavior. `Renderer::render` still
+paints the full viewport; this is not cached layout or automatic damage tracking.
+
+Local comparison on **2026-10-18**: Intel Core i5-12400, Windows build 26200,
+Rust 1.98.1, release profile, 200×60 cells, truecolor test capabilities. The same
+harness ran against `c74c345` and this optimization, offline and without terminal
+I/O. Each value is the median of five batch means after 10% warmup; batches
+contain 1,000 frames, except full restyling (100) and long emoji (400).
+
+| Presentation workload | Before, µs/frame | After, µs/frame | Commands |
+| --- | ---: | ---: | ---: |
+| Unchanged mixed text, full damage | 118.7 | 64.8 | 0 |
+| One-cell edit, full damage | 123.2 | 67.4 | 4 |
+| One-cell edit, one-cell damage | 0.2 | 0.2 | 4 |
+| Every cell restyled, including back-buffer copy | 677.5 | 538.2 | 181 |
+| Unchanged heap-backed family emoji | 318.1 | 57.5 | 0 |
+| Unchanged text view, paint + present | 280.2 | 74.8 | 0 |
+
+Run `cargo bench -p jilva --bench render_diff --locked` to reproduce the scenes.
+These are local CPU samples, not per-frame p95, allocation counts, interactive
+terminal latency, or a comparison with other frameworks. Machine load changes
+the absolute times; command equality and Unicode/damage round trips are tested
+separately.
 
 | Workload | Proposed gate |
 | --- | --- |

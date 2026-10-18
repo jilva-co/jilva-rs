@@ -49,8 +49,8 @@ impl Snapshot {
     fn svg(&self, light: bool) -> String {
         // Explicit assumptions for terminal-default colours and ANSI colours:
         // an emulator's user palette and font can produce different pixels.
-        let default_fg = if light { (35, 32, 55) } else { (246, 246, 239) };
-        let default_bg = if light { (247, 246, 252) } else { (20, 20, 30) };
+        let default_fg = if light { (20, 20, 20) } else { (245, 245, 245) };
+        let default_bg = if light { (248, 248, 248) } else { (0, 0, 0) };
         let mut svg = format!(
             "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{}\" height=\"{}\" viewBox=\"0 0 {} {}\"><title>Jilva Studio terminal frame</title><g font-family=\"Cascadia Mono, DejaVu Sans Mono, monospace\" font-size=\"20\" xml:space=\"preserve\">",
             self.buffer.width() as u32 * 12,
@@ -93,16 +93,30 @@ impl Snapshot {
                     };
                     let _ = write!(
                         svg,
-                        "<text x=\"{}\" y=\"{}\" fill=\"{}\" font-weight=\"{}\" font-style=\"{}\" text-decoration=\"{}\" opacity=\"{}\">{}</text>",
-                        x * 12,
+                        "<text y=\"{}\" fill=\"{}\" font-weight=\"{}\" font-style=\"{}\" text-decoration=\"{}\" opacity=\"{}\">",
                         u32::from(y) * 24 + 19,
                         hex(fg),
                         if attrs.bold { 600 } else { 400 },
                         if attrs.italic { "italic" } else { "normal" },
                         decoration,
                         if attrs.dim { "0.65" } else { "1" },
-                        escape(&content)
                     );
+                    // Anchor each grapheme to its terminal column. SVG text
+                    // whitespace and fallback font advances must not move
+                    // borders, wide glyphs or right-aligned content.
+                    for (offset, cell) in row[x..end].iter().enumerate() {
+                        if cell.symbol().trim().is_empty() {
+                            continue;
+                        }
+                        let _ = write!(
+                            svg,
+                            "<tspan x=\"{}\" textLength=\"{}\" lengthAdjust=\"spacingAndGlyphs\">{}</tspan>",
+                            (x + offset) * 12,
+                            u32::from(cell.width()) * 12,
+                            escape(cell.symbol()),
+                        );
+                    }
+                    svg.push_str("</text>");
                 }
                 x = end;
             }
@@ -135,9 +149,28 @@ mod tests {
         attrs.reverse = true;
         frame.buffer.set_string(0, 0, "<&>", attrs);
         let svg = frame.svg(false);
-        assert!(svg.contains("&lt;&amp;&gt;"));
+        for entity in ["&lt;", "&amp;", "&gt;"] {
+            assert!(svg.contains(entity));
+        }
         assert!(svg.contains("fill=\"#010203\""));
         assert!(svg.contains("fill=\"#040506\""));
         assert!(!svg.contains("<&>"));
+    }
+
+    #[test]
+    fn svg_anchors_each_grapheme_to_its_terminal_columns() {
+        let mut frame = Snapshot::new((8, 1));
+        frame
+            .buffer
+            .set_string(1, 0, "a 日é", ResolvedAttributes::plain());
+        let svg = frame.svg(false);
+        for expected in [
+            "x=\"12\" textLength=\"12\" lengthAdjust=\"spacingAndGlyphs\">a</tspan>",
+            "x=\"36\" textLength=\"24\" lengthAdjust=\"spacingAndGlyphs\">日</tspan>",
+            "x=\"60\" textLength=\"12\" lengthAdjust=\"spacingAndGlyphs\">é</tspan>",
+        ] {
+            assert!(svg.contains(expected), "missing {expected}");
+        }
+        assert_eq!(svg.matches("<tspan ").count(), 3);
     }
 }
