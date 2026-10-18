@@ -175,12 +175,17 @@ impl Renderer {
         let stream = if full {
             redraw(&self.back, caps, &self.options)
         } else {
-            diff(&self.front, &self.back, damage, caps, &self.options)
+            diff::diff_and_sync(
+                &mut self.front,
+                &self.back,
+                damage,
+                caps,
+                &self.options,
+                &mut self.spans,
+            )
         };
         if full {
             self.front.clone_from(&self.back);
-        } else {
-            self.sync_front(damage);
         }
         self.needs_redraw = false;
         self.color = Some(caps.color);
@@ -213,21 +218,6 @@ impl Renderer {
         self.back.clear();
         view.paint(self.back.area(), &mut self.back);
         self.present(&Damage::Full, caps)
-    }
-
-    /// Copies the damaged spans of the back buffer into the front buffer,
-    /// using the same wide-glyph widening the diff used.
-    fn sync_front(&mut self, damage: &Damage) {
-        let (first, last) = diff::row_bounds(damage, self.back.height());
-        for y in first..last {
-            let (Some(old_row), Some(new_row)) = (self.front.row(y), self.back.row(y)) else {
-                continue;
-            };
-            diff::damage_spans(damage, y, old_row, new_row, &mut self.spans);
-            for &(start, end) in &self.spans {
-                self.front.copy_span_from(&self.back, y, start, end);
-            }
-        }
     }
 }
 
@@ -952,6 +942,70 @@ mod tests {
             assert_eq!(screen.screen, effective_copy(renderer.back_buffer(), &caps));
             assert_eq!(renderer.front_buffer(), renderer.back_buffer());
         }
+    }
+
+    #[test]
+    fn renderer_records_raw_changes_even_when_the_terminal_cannot_show_them() {
+        for damage in [Damage::Full, Damage::from_rects([Rect::new(1, 0, 1, 1)])] {
+            let mono = caps_for(ColorTier::Mono);
+            let mut renderer = Renderer::new(8, 1);
+            renderer
+                .back_buffer_mut()
+                .set_string(0, 0, "日本", fg(255, 0, 0));
+            let _ = renderer.present(&Damage::Full, &mono);
+            // Only the continuation is damaged. Both halves must be synced,
+            // even though monochrome downgrades both reds to the same ink.
+            renderer
+                .back_buffer_mut()
+                .set_attrs(Rect::new(1, 0, 1, 1), fg(200, 10, 10));
+            assert!(renderer.present(&damage, &mono).is_empty());
+            assert_eq!(renderer.front_buffer(), renderer.back_buffer());
+            let stream = renderer.present(&Damage::none(), &truecolor());
+            let mut screen = VirtualScreen::showing(&Buffer::new(8, 1), &truecolor());
+            screen.apply(&stream).unwrap();
+            assert_eq!(
+                screen.screen,
+                effective_copy(renderer.back_buffer(), &truecolor())
+            );
+        }
+    }
+
+    #[test]
+    fn renderer_stream_matches_standalone_diff_for_disjoint_wide_and_heap_edits() {
+        let caps = truecolor();
+        let mut renderer = Renderer::new(30, 2);
+        renderer
+            .back_buffer_mut()
+            .set_string(0, 0, "日 abc 語", plain());
+        renderer
+            .back_buffer_mut()
+            .set_string(1, 1, "👨‍👩‍👧‍👦 z", fg(1, 2, 3));
+        let _ = renderer.present(&Damage::Full, &caps);
+        let before = renderer.front_buffer().clone();
+        renderer.back_buffer_mut().set_string(1, 0, "x", plain());
+        renderer.back_buffer_mut().set_string(8, 0, "本", plain());
+        renderer
+            .back_buffer_mut()
+            .set_string(1, 1, "👩‍👩‍👦‍👦", fg(3, 2, 1));
+        let damage = Damage::from_rects([
+            Rect::new(1, 0, 1, 1),
+            Rect::new(8, 0, 2, 1),
+            Rect::new(2, 1, 1, 1),
+        ]);
+        let expected = diff(
+            &before,
+            renderer.back_buffer(),
+            &damage,
+            &caps,
+            &DiffOptions::default(),
+        );
+        let actual = renderer.present(&damage, &caps);
+        assert_eq!(actual, expected);
+        assert_eq!(renderer.front_buffer(), renderer.back_buffer());
+        let mut screen = VirtualScreen::showing(&before, &caps);
+        screen.apply(&actual).unwrap();
+        assert_eq!(screen.screen, effective_copy(renderer.back_buffer(), &caps));
+        assert!(renderer.present(&damage, &caps).is_empty());
     }
 
     #[test]

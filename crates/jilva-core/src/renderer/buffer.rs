@@ -33,11 +33,27 @@ use crate::output::ResolvedAttributes;
 /// assert_eq!(end, 5); // 1 + 1 + 2 + 1
 /// assert_eq!(buffer.text_rows(), [" a日b   ", "        "]);
 /// ```
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct Buffer {
     width: u16,
     height: u16,
     cells: Vec<Cell>,
+}
+
+impl Clone for Buffer {
+    fn clone(&self) -> Self {
+        Self {
+            width: self.width,
+            height: self.height,
+            cells: self.cells.clone(),
+        }
+    }
+
+    fn clone_from(&mut self, source: &Self) {
+        self.cells.clone_from(&source.cells);
+        self.width = source.width;
+        self.height = source.height;
+    }
 }
 
 impl Buffer {
@@ -261,16 +277,14 @@ impl Buffer {
             .collect()
     }
 
-    /// Copies columns `x0..x1` of row `y` from `source`. Callers pass spans
-    /// aligned to wide-cell boundaries in both buffers and equal dimensions.
-    pub(super) fn copy_span_from(&mut self, source: &Self, y: u16, x0: u16, x1: u16) {
-        debug_assert_eq!((self.width, self.height), (source.width, source.height));
-        if y >= self.height || x0 >= x1 || x1 > self.width {
-            return;
+    /// Mutable row access stays inside the renderer, whose span operations
+    /// preserve the wide-cell invariant.
+    pub(super) fn row_mut(&mut self, y: u16) -> Option<&mut [Cell]> {
+        if y >= self.height {
+            return None;
         }
         let start = usize::from(y) * usize::from(self.width);
-        let range = start + usize::from(x0)..start + usize::from(x1);
-        self.cells[range.clone()].clone_from_slice(&source.cells[range]);
+        Some(&mut self.cells[start..start + usize::from(self.width)])
     }
 
     fn index(&self, x: u16, y: u16) -> Option<usize> {
@@ -373,6 +387,21 @@ mod tests {
         assert_eq!(buffer.area(), Rect::new(0, 0, 3, 2));
         assert!(buffer.row(0).unwrap().iter().all(Cell::is_ground_state));
         assert_eq!(buffer.text_rows(), ["   ", "   "]);
+    }
+
+    #[test]
+    fn cloning_into_an_existing_buffer_replaces_shape_and_owns_its_graphemes() {
+        let mut source = Buffer::new(16, 2);
+        source.set_string(0, 0, "日本 👨‍👩‍👧‍👦", red());
+        let mut destination = Buffer::new(3, 4);
+        destination.clone_from(&source);
+        assert_eq!(destination, source);
+        assert_consistent(&destination);
+        source.clear();
+        assert_ne!(destination, source);
+        assert!(destination.text_rows()[0].contains("👨‍👩‍👧‍👦"));
+        destination.clone_from(&Buffer::new(0, 2));
+        assert_eq!(destination.text_rows(), ["", ""]);
     }
 
     #[test]
