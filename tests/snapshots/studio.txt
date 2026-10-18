@@ -1,0 +1,83 @@
+120x36
+
+      JILVA                                                                                      FRAMEWORK WORKBENCH
+
+    EXAMPLES                Counter
+
+                            Local component state. One key, one update, one frame.
+    > 1  Counter
+
+                            ┌──────────────────────────────────────────────────────────────────────────────────────┐
+                            │                                                                                      │
+      2  Layout             │   Value: 0                                                                           │
+                            │                                                                                      │
+                            │                                                                                      │
+                            │                                                                                      │
+      3  Unicode            │                                                                                      │
+                            │                                                                                      │
+                            │                                        ██████                                        │
+                            │                                        ██████                                        │
+                            │                                        ██  ██                                        │
+                            │                                        ██  ██                                        │
+                            │                                        ██  ██                                        │
+                            │                                        ██  ██                                        │
+                            │                                        ██  ██                                        │
+                            │                                        ██  ██                                        │
+                            │                                        ██████                                        │
+                            │                                        ██████                                        │
+                            │                                                                                      │
+                            │                                                                                      │
+                            │                                                                                      │
+                            │                                                                                      │
+                            │ + / - change   Enter +1   r reset                                                    │
+    1-3 choose              │                                                                                      │
+    Tab to interact         └──────────────────────────────────────────────────────────────────────────────────────┘
+
+    1-3 example   Tab focus   +/- change   r reset   t theme   q quit
+
+
+80x24
+
+   JILVA                                                    FRAMEWORK WORKBENCH
+
+ >1 Counter                  2 Layout                  3 Unicode
+
+ Counter
+
+ Local component state. One key, one update, one frame.
+
+
+ ┌────────────────────────────────────────────────────────────────────────────┐
+ │   Value: 0                                                                 │
+ │                                                                            │
+ │                                    ███                                     │
+ │                                    █ █                                     │
+ │                                    █ █                                     │
+ │                                    █ █                                     │
+ │                                    ███                                     │
+ │                                                                            │
+ │ + / - change   Enter +1   r reset                                          │
+ └────────────────────────────────────────────────────────────────────────────┘
+
+ 1-3 example   Tab focus   +/- change   r reset   t theme   q quit
+
+
+40x18
+   JILVA                      WORKBENCH
+
+ >1 Counter    2 Layout     3 Unicode
+
+ Counter
+ Local component state. One key, one
+ update, one frame.
+ ┌────────────────────────────────────┐
+ │   Value: 0                         │
+ │                                    │
+ │                                    │
+ │                 0                  │
+ │                                    │
+ │                                    │
+ │ +/- change  Enter +1  r reset      │
+ └────────────────────────────────────┘
+
+ 1-3 demo  Tab focus  t theme  q quit

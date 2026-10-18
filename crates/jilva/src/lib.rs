@@ -6,13 +6,14 @@
 //! [`Model`] and the sans-IO [`App`] runtime are driven by [`run_with`]
 //! (or `run` with the default `crossterm` feature). [`Component`]s placed
 //! with [`View::component`] get framework-owned state and Tab focus.
-//! Themes, grid, ready-made widgets, external streaming, and recording are
+//! Semantic [`Theme`]s provide dark/light palettes and [`StyleState`] overlays.
+//! Grid, ready-made widgets, external streaming, and recording are
 //! planned. See `docs/README.md` for the implementation and design status.
 //!
 //! # A whole app
 //!
 //! ```rust,no_run
-//! use jilva::{Align, App, Context, Effects, Event, Model, Outcome, View};
+//! use jilva::{Align, App, Context, Effects, Event, Model, Outcome, SemanticToken, View};
 //!
 //! struct Counter {
 //!     count: i64,
@@ -31,8 +32,9 @@
 //!         Ok(Outcome::repaint())
 //!     }
 //!
-//!     fn view(&self, _cx: &Context) -> jilva::Result<View> {
-//!         Ok(View::text(&format!("count: {}", self.count)).text_align(Align::Center))
+//!     fn view(&self, cx: &Context) -> jilva::Result<View> {
+//!         Ok(View::styled_text(&format!("count: {}", self.count), cx.style(SemanticToken::Accent))
+//!             .text_align(Align::Center))
 //!     }
 //! }
 //!
@@ -72,7 +74,7 @@ pub use jilva_core::renderer::{
     Buffer, Cell, Damage, DiffOptions, Renderer, cluster_width, diff, graphemes, redraw,
     text_width, truncate_to_width,
 };
-pub use jilva_core::style::SemanticToken;
+pub use jilva_core::style::{ResolvedStyle, ResolvedTheme, SemanticToken, StyleState, Theme};
 pub use jilva_core::view::{Backdrop, BorderStyle, Span, View};
 pub use jilva_core::{
     AttrSupport, BackgroundHint, ColorProfile, ColorTier, InputProfile, KeyEncoding, ScreenProfile,

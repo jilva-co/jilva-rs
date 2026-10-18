@@ -16,6 +16,7 @@ use std::fmt;
 use crate::error::{Error, Result};
 use crate::events::{Change, Event, InputEvent, Outcome};
 use crate::lifecycle::{Context, Effects, FollowUps};
+use crate::style::Theme;
 use crate::view::View;
 
 /// A reusable UI unit whose state lives in a framework-owned slot.
@@ -209,6 +210,7 @@ pub(crate) struct Delivered {
     pub(crate) outcome: Outcome,
     pub(crate) change: Change,
     pub(crate) quit: bool,
+    pub(crate) theme: Option<Theme>,
 }
 
 /// The object-safe face of every [`Component`], used by the runtime.
@@ -312,6 +314,7 @@ impl<C: Component> ErasedComponent for C {
             outcome,
             change,
             quit: effects.quit_requested(),
+            theme: effects.take_theme(),
         })
     }
 

@@ -14,6 +14,7 @@ use crate::component::{ComponentNode, ErasedComponent, Path, Segment};
 use crate::error::{Error, Result};
 use crate::events::{Change, InputEvent};
 use crate::lifecycle::{Context, FollowUps};
+use crate::style::Theme;
 use crate::view::View;
 
 /// A generational handle into the slot table. A stale handle (its slot was
@@ -51,6 +52,7 @@ pub(crate) struct Dispatched {
     pub(crate) consumed: bool,
     pub(crate) change: Change,
     pub(crate) quit: bool,
+    pub(crate) theme: Option<Theme>,
 }
 
 /// The framework-owned component tree.
@@ -158,6 +160,7 @@ impl Tree {
             consumed: false,
             change: Change::None,
             quit: false,
+            theme: None,
         };
         let Some(focus) = self.focus.clone() else {
             return Ok(result);
@@ -174,6 +177,9 @@ impl Tree {
             let delivered = self.deliver(slot, input, &cx.with_focused(is_focus), budget)?;
             result.change = result.change.max(delivered.change);
             result.quit |= delivered.quit;
+            if let Some(theme) = delivered.theme {
+                result.theme = Some(theme);
+            }
             if delivered.outcome.is_consumed() {
                 result.consumed = true;
                 break;
@@ -194,6 +200,7 @@ impl Tree {
             consumed: false,
             change: Change::None,
             quit: false,
+            theme: None,
         };
         let targets: Vec<(SlotId, bool)> = self
             .mounted
@@ -204,6 +211,9 @@ impl Tree {
             let delivered = self.deliver(slot, input, &cx.with_focused(is_focus), budget)?;
             result.change = result.change.max(delivered.change);
             result.quit |= delivered.quit;
+            if let Some(theme) = delivered.theme {
+                result.theme = Some(theme);
+            }
         }
         Ok(result)
     }

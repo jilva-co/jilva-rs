@@ -140,6 +140,35 @@ impl Rect {
             self.height - doubled,
         )
     }
+
+    /// Insets the horizontal and vertical axes independently, in cells.
+    ///
+    /// Each inset clamps to half its axis. An exhausted axis becomes zero;
+    /// coordinates saturate rather than wrapping at the edge of the grid.
+    ///
+    /// ```rust
+    /// use jilva_core::Rect;
+    ///
+    /// assert_eq!(Rect::new(0, 0, 12, 5).inner_xy(2, 1), Rect::new(2, 1, 8, 3));
+    /// assert_eq!(Rect::new(0, 0, 3, 5).inner_xy(9, 0), Rect::new(1, 0, 0, 5));
+    /// ```
+    #[must_use]
+    pub const fn inner_xy(self, horizontal: u16, vertical: u16) -> Self {
+        Self::new(
+            self.x.saturating_add(if horizontal > self.width / 2 {
+                self.width / 2
+            } else {
+                horizontal
+            }),
+            self.y.saturating_add(if vertical > self.height / 2 {
+                self.height / 2
+            } else {
+                vertical
+            }),
+            self.width.saturating_sub(horizontal.saturating_mul(2)),
+            self.height.saturating_sub(vertical.saturating_mul(2)),
+        )
+    }
 }
 
 /// The axis a [`Layout`] splits along.
